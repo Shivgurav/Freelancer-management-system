@@ -1,0 +1,55 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-polished-fog-amshlcjk-pooler.c-5.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_3WGAnNgYMzw0}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+eureka:
+ client:
+  enabled: true                    # was false — now enable
+  service-url:
+    defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
+  registry-fetch-interval-seconds: 5
+ instance:
+  prefer-ip-address: true
+  instance-id: ${spring.application.name}:${server.port}
+
+jwt:
+  secret: ${JWT_SECRET:freelancer_platform_super_secret_key_256bits_change_in_prod}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+profile:
+ service:
+  url: ${PROFILE_SERVICE_URL:http://localhost:8082}
+
+logging:
+  level:
+    com.freelancer.auth: DEBUG
+    org.springframework.security: INFO
