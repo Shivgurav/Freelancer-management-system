@@ -45,12 +45,10 @@ management:
       exposure:
         include: health,info
 
-profile:
- service:
-  url: ${PROFILE_SERVICE_URL:http://profile-service}
-notification:
- service:
-  url: ${NOTIFICATION_SERVICE_URL:http://notification-service}
+services:
+  job: ${JOB_SERIVE_URL:http://job-service}         
+  profile: ${PROFILE_SERVICE_URL:http://profile-service}
+  notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
 
 logging:
   level:

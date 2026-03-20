@@ -1,5 +1,6 @@
 package com.freelancer.profile.service;
 
+import com.freelancer.profile.client.NotificationClient;
 import com.freelancer.profile.dto.request.ClientProfileRequest;
 import com.freelancer.profile.dto.request.ProfileRequest;
 import com.freelancer.profile.dto.request.SkillRequest;
@@ -17,6 +18,7 @@ import com.freelancer.profile.repository.ClientProfileRepository;
 import com.freelancer.profile.repository.FreelancerProfileRepository;
 import com.freelancer.profile.repository.FreelancerSkillRepository;
 import com.freelancer.profile.repository.SkillRepository;
+import com.freelancer.profile.security.UserPrincipal;
 import com.freelancer.profile.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +40,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final ClientProfileRepository     clientProfileRepository;
     private final SkillRepository             skillRepository;
     private final FreelancerSkillRepository   freelancerSkillRepository;
+    private final NotificationClient notificationClient;
 
     // ══════════════════════════════════════════════════════════════
     // FREELANCER
@@ -67,6 +71,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .build();
 
         profile = freelancerProfileRepository.save(profile);
+    
 
         if (request.getSkills() != null) {
             for (SkillRequest sr : request.getSkills()) {
@@ -124,6 +129,17 @@ public class ProfileServiceImpl implements ProfileService {
             profile.setAvailability(request.getAvailability());
 
         freelancerProfileRepository.save(profile);
+
+        notificationClient.send(
+            "PROFILE_UPDATED",
+            UserPrincipal.getCurrentUserEmail(),
+            UserPrincipal.getCurrentUserName(),
+            Map.of(
+                "userId" ,  "${userID}",
+                "title" ,request.getTitle()
+                
+            )
+        );
         log.info("Freelancer profile updated for userId: {}", userId);
         return mapFreelancerToResponse(profile);
     }

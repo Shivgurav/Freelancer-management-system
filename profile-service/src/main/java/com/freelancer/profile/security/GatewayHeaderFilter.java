@@ -24,34 +24,43 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        String userId = request.getHeader("X-User-Id");
-        String role   = request.getHeader("X-User-Role");
-        String email  = request.getHeader("X-User-Email");
+        String userId    = request.getHeader("X-User-Id");
+        String role      = request.getHeader("X-User-Role");
+        String email     = request.getHeader("X-User-Email");
+        String firstName = request.getHeader("X-User-FirstName");
+        String lastName  = request.getHeader("X-User-LastName");
 
-        // If headers are present — build Spring Security context
         if (userId != null && role != null) {
-
-            // Spring Security needs roles prefixed with ROLE_
-            // e.g. "FREELANCER" becomes "ROLE_FREELANCER"
             List<SimpleGrantedAuthority> authorities = List.of(
-                    new SimpleGrantedAuthority("ROLE_" + role)
-            );
+                    new SimpleGrantedAuthority("ROLE_" + role));
 
-            // Build auth object — principal = userId, credentials = email
-            UsernamePasswordAuthenticationToken authentication =
+            // Build full name from headers
+            String fullName = "";
+            if (firstName != null && lastName != null) {
+                fullName = firstName + " " + lastName;
+            } else if (firstName != null) {
+                fullName = firstName;
+            }
+
+            // We store extra info in a custom auth token
+            // principal   = userId
+            // credentials = email
+            // details     = fullName  ← store name here
+            UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
-                            userId,   // who is this user
-                            email,    // their email
-                            authorities // their role
-                    );
+                            userId,    // principal
+                            email,     // credentials
+                            authorities);
 
-            // Set into Spring Security context
-            // Now @PreAuthorize and .authenticated() will work correctly
+            // Store fullName in details
+            auth.setDetails(fullName);
+
             SecurityContextHolder.getContext()
-                    .setAuthentication(authentication);
+                    .setAuthentication(auth);
 
-            log.debug("Set security context for userId: {} role: {}",
-                    userId, role);
+            log.debug("Security context set — " +
+                      "userId: {} role: {} name: {}",
+                    userId, role, fullName);
         }
 
         filterChain.doFilter(request, response);

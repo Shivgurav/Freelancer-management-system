@@ -14,7 +14,7 @@ public class ProfileServiceClient {
     private final WebClient webClient;
 
     public ProfileServiceClient(
-            @Value("${profile.service.url:http://localhost:8082}")
+            @Value("${services.profile}")
             String profileServiceUrl) {
 
         this.webClient = WebClient.builder()

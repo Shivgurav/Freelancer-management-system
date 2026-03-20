@@ -1,5 +1,10 @@
 package com.freelancer.contract.service;
 
+import com.freelancer.contract.client.AuthClient;
+import com.freelancer.contract.client.AuthClient.UserInfo;
+import com.freelancer.contract.client.JobClient;
+import com.freelancer.contract.client.JobClient.JobInfo;
+import com.freelancer.contract.client.NotificationClient;
 import com.freelancer.contract.dto.request.ContractRequest;
 import com.freelancer.contract.dto.response.ContractResponse;
 import com.freelancer.contract.dto.response.MilestoneResponse;
@@ -15,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,6 +30,9 @@ import java.util.stream.Collectors;
 public class ContractServiceImpl implements ContractService {
 
     private final ContractRepository contractRepository;
+    private final NotificationClient notificationClient;
+    private final AuthClient authClient;
+    private final JobClient jobClient;
 
     // ── Create contract ───────────────────────────────────────────
     // Called by Job Service when bid is accepted
@@ -51,8 +60,32 @@ public class ContractServiceImpl implements ContractService {
                 .terms(request.getTerms())
                 .status(ContractStatus.ACTIVE)
                 .build();
-
+       UserInfo clientInfo=authClient.getUserInfo(request.getClientId());
+       JobInfo jobInfo=jobClient.getJobInfo(request.getJobId());
+       UserInfo freelancerInfo=authClient.getUserInfo(request.getFreelancerId());
+       
+       
         contractRepository.save(contract);
+        notificationClient.send(
+        	    "CONTRACT_CREATED",
+        	    clientInfo.getEmail(),
+        	    clientInfo.getFullName(),
+        	    Map.of(
+        	    		"jobTitle",   jobInfo.getTitle()  ,
+        	        "agreedAmount", contract.getAgreedAmount().toString(),
+        	        "startDate",    contract.getStartDate().toString()
+        	    )
+        	);
+        notificationClient.send(
+        	    "CONTRACT_CREATED",
+        	    freelancerInfo.getEmail(),
+        	    freelancerInfo.getFullName(),
+        	    Map.of(
+        	        "jobTitle",     jobInfo.getTitle(),
+        	        "agreedAmount", contract.getAgreedAmount().toString(),
+        	        "startDate",    contract.getStartDate().toString()
+        	    )
+        	);
         log.info("Contract created — jobId: {} bidId: {}",
                 request.getJobId(), request.getBidId());
 
@@ -122,8 +155,33 @@ public class ContractServiceImpl implements ContractService {
         Contract contract = findById(contractId);
         contract.setStatus(ContractStatus.COMPLETED);
         contractRepository.save(contract);
+        UserInfo clientInfo=authClient.getUserInfo(contract.getClientId());
+        JobInfo jobInfo=jobClient.getJobInfo(contract.getJobId());
+        UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
+        
+         notificationClient.send(
+        	    "CONTRACT_CREATED",
+        	    clientInfo.getEmail(),
+        	    clientInfo.getFullName(),
+        	    Map.of(
+        	    		"jobTitle",   jobInfo.getTitle()  ,
+        	        "agreedAmount", contract.getAgreedAmount().toString(),
+        	        "startDate",    contract.getStartDate().toString()
+        	    )
+        	);
+        notificationClient.send(
+        	    "CONTRACT_CREATED",
+        	    freelancerInfo.getEmail(),
+        	    freelancerInfo.getFullName(),
+        	    Map.of(
+        	        "jobTitle",     jobInfo.getTitle(),
+        	        "agreedAmount", contract.getAgreedAmount().toString(),
+        	        "startDate",    contract.getStartDate().toString()
+        	    )
+        	);
         log.info("Contract COMPLETED — contractId: {}", contractId);
         return mapToResponse(contract);
+        
     }
 
     // ── Private helpers ───────────────────────────────────────────

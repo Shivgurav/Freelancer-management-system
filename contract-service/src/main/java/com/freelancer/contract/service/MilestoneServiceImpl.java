@@ -1,5 +1,8 @@
 package com.freelancer.contract.service;
 
+import com.freelancer.contract.client.AuthClient;
+import com.freelancer.contract.client.AuthClient.UserInfo;
+import com.freelancer.contract.client.NotificationClient;
 import com.freelancer.contract.dto.request.MilestoneRequest;
 import com.freelancer.contract.dto.response.MilestoneResponse;
 import com.freelancer.contract.entity.Contract;
@@ -18,6 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -29,6 +33,8 @@ public class MilestoneServiceImpl implements MilestoneService {
     private final MilestoneRepository  milestoneRepository;
     private final ContractRepository   contractRepository;
     private final ContractService      contractService;
+    private final NotificationClient notificationClient;
+    private final AuthClient authClient;
 
     // ── Add milestone ─────────────────────────────────────────────
     // Only CLIENT can add milestones to their contract
@@ -125,6 +131,17 @@ public class MilestoneServiceImpl implements MilestoneService {
 
         milestone.setStatus(MilestoneStatus.APPROVED);
         milestoneRepository.save(milestone);
+        UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
+        
+        notificationClient.send(
+        	    "MILESTONE_APPROVED",
+        	    freelancerInfo.getEmail(),
+        	    freelancerInfo.getFullName(),
+        	    Map.of(
+        	        "milestoneTitle",  milestone.getTitle(),
+        	        "milestoneAmount", milestone.getAmount().toString()
+        	    )
+        	);
         log.info("Milestone APPROVED — milestoneId: {}", milestoneId);
 
         // Check if ALL milestones are now approved

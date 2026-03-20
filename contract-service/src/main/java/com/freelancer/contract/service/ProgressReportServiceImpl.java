@@ -1,7 +1,11 @@
 package com.freelancer.contract.service;
 
+import com.freelancer.contract.client.AuthClient;
+import com.freelancer.contract.client.AuthClient.UserInfo;
+import com.freelancer.contract.client.NotificationClient;
 import com.freelancer.contract.dto.request.ProgressReportRequest;
 import com.freelancer.contract.dto.response.ProgressReportResponse;
+import com.freelancer.contract.entity.Contract;
 import com.freelancer.contract.entity.Milestone;
 import com.freelancer.contract.entity.ProgressReport;
 import com.freelancer.contract.enums.MilestoneStatus;
@@ -19,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -30,6 +35,8 @@ public class ProgressReportServiceImpl implements ProgressReportService {
     private final ProgressReportRepository reportRepository;
     private final MilestoneRepository      milestoneRepository;
     private final MilestoneService         milestoneService;
+    private final NotificationClient notificationClient;
+    private final AuthClient authClient;
 
     // ── Submit progress report ────────────────────────────────────
     // Freelancer submits this to show work done on a milestone
@@ -67,8 +74,21 @@ public class ProgressReportServiceImpl implements ProgressReportService {
                 .attachmentUrls(request.getAttachmentUrls())
                 .status(ReportStatus.SUBMITTED)
                 .build();
-
+        Contract contract=milestone.getContract();
+        UserInfo clientInfo=authClient.getUserInfo(contract.getClientId());
         reportRepository.save(report);
+        notificationClient.send(
+        	    "PROGRESS_REPORT_SUBMITTED",
+        	    clientInfo.getEmail(),
+        	    clientInfo.getFullName()
+        	    ,
+        	    Map.of(
+        	        "milestoneTitle", milestone.getTitle(),
+        	        "reportTitle",    report.getTitle(),
+        	        "percentage",     report.getPercentageComplete().toString(),
+        	        "contractId",     milestone.getContract().getId().toString()
+        	    )
+        	);
 
         // Move milestone to SUBMITTED status
         // So client knows to review it
@@ -113,9 +133,19 @@ public class ProgressReportServiceImpl implements ProgressReportService {
             throw new ContractException(
                     "Can only approve SUBMITTED or REVIEWED reports");
         }
-
+         Contract contract=milestone.getContract();
+         UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
         report.setStatus(ReportStatus.APPROVED);
         reportRepository.save(report);
+        notificationClient.send(
+        	    "REPORT_APPROVED",
+        	    freelancerInfo.getEmail(),
+        	    freelancerInfo.getFullName(),
+        	    Map.of(
+        	        "milestoneTitle", milestone.getTitle(),
+        	        "reportTitle",    report.getTitle()
+        	    )
+        	);
 
         // This triggers milestone approval
         // Which may trigger contract completion
@@ -148,8 +178,21 @@ public class ProgressReportServiceImpl implements ProgressReportService {
         }
 
         report.setStatus(ReportStatus.NEEDS_REVISION);
+        Contract contract=milestone.getContract();
+        UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
+        notificationClient.send(
+        	    "REVISION_REQUESTED",
+        	    freelancerInfo.getEmail(),
+        	    freelancerInfo.getFullName(),
+        	    Map.of(
+        	        "milestoneTitle", milestone.getTitle(),
+        	        "feedback",       feedback,
+        	        "contractId",     milestone.getContract().getId().toString()
+        	    )
+        	);
         report.setClientFeedback(feedback);
         reportRepository.save(report);
+        
 
         // Move milestone back so freelancer can resubmit
         milestoneService.requestRevision(

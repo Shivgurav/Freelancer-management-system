@@ -4,6 +4,7 @@ import com.freelancer.auth.dto.request.LoginRequest;
 import com.freelancer.auth.dto.request.RefreshTokenRequest;
 import com.freelancer.auth.dto.request.RegisterRequest;
 import com.freelancer.auth.dto.response.AuthResponse;
+import com.freelancer.auth.dto.response.UserInfoResponse;
 import com.freelancer.auth.dto.response.UserResponse;
 import com.freelancer.auth.service.AuthService;
 import jakarta.validation.Valid;
@@ -56,6 +57,16 @@ public class AuthController {
     public ResponseEntity<UserResponse> getMe(
             @RequestHeader("X-User-Id") UUID userId) {
         return ResponseEntity.ok(authService.getMe(userId));
+    }
+    /**
+     * GET /api/auth/user/{userId}
+     * Internal endpoint — called by other microservices
+     * Returns basic user info by userId
+     */
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<UserInfoResponse> getUserById(
+            @PathVariable UUID userId) {
+        return ResponseEntity.ok(authService.getUserById(userId));
     }
     
 }

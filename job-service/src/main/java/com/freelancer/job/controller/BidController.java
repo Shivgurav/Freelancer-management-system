@@ -22,15 +22,14 @@ public class BidController {
     private final BidService bidService;
 
     // FREELANCER submits a bid
-    @PostMapping("/job/{jobId}")
+    @PostMapping("/job/{jobId}/client/{clientId}")
     @PreAuthorize("hasRole('FREELANCER')")
     public ResponseEntity<BidResponse> submitBid(
-            @PathVariable UUID jobId,
+            @PathVariable UUID jobId,UUID clientId,
             @Valid @RequestBody BidRequest request) {
         UUID freelancerId = UserPrincipal.getCurrentUserId();
         return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(bidService.submitBid(jobId, freelancerId, request));
+                .status(HttpStatus.CREATED).body(bidService.submitBid(jobId, freelancerId,clientId, request));
     }
 
     // CLIENT views all bids on their job

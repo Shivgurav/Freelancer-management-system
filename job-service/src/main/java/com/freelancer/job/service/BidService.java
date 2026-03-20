@@ -11,6 +11,7 @@ public interface BidService {
     // Freelancer submits a bid on a job
     BidResponse submitBid(UUID jobId,
                           UUID freelancerId,
+                          UUID clientId,
                           BidRequest request);
 
     // All bids on a job — client views this

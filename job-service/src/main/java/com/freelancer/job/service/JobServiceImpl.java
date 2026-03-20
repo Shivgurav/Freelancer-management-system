@@ -1,5 +1,7 @@
 package com.freelancer.job.service;
 
+import com.freelancer.job.client.AuthClient;
+import com.freelancer.job.client.AuthClient.UserInfo;
 import com.freelancer.job.client.NotificationClient;
 import com.freelancer.job.dto.request.JobRequest;
 import com.freelancer.job.dto.response.JobResponse;
@@ -28,6 +30,7 @@ public class JobServiceImpl implements JobService {
 
     private final JobPostRepository jobPostRepository;
     private final NotificationClient notificationClient;
+    private final AuthClient authClient;
 
     @Override
     @Transactional
@@ -53,6 +56,18 @@ public class JobServiceImpl implements JobService {
                 .build();
 
         jobPostRepository.save(job);
+        UserInfo clientInfo=authClient.getUserInfo(clientId);
+        
+        notificationClient.send(
+        	    "JOB_POSTED",
+        	    clientInfo.getEmail(),     // you need to store or pass client email
+        	    clientInfo.getFullName(),
+        	    Map.of(
+        	        "jobTitle",   job.getTitle(),
+        	        "budgetMin",  job.getBudgetMin().toString(),
+        	        "budgetMax",  job.getBudgetMax().toString()
+        	    )
+        	);
         log.info("Job created by clientId: {} — title: {}",
                 clientId, job.getTitle());
         String email=UserPrincipal.getCurrentUserEmail();

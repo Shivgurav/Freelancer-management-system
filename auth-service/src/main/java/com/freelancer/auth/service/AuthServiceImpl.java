@@ -1,10 +1,12 @@
 package com.freelancer.auth.service;
 
+import com.freelancer.auth.client.NotificationClient;
 import com.freelancer.auth.client.ProfileServiceClient;
 import com.freelancer.auth.dto.request.LoginRequest;
 import com.freelancer.auth.dto.request.RefreshTokenRequest;
 import com.freelancer.auth.dto.request.RegisterRequest;
 import com.freelancer.auth.dto.response.AuthResponse;
+import com.freelancer.auth.dto.response.UserInfoResponse;
 import com.freelancer.auth.dto.response.UserResponse;
 import com.freelancer.auth.entity.RefreshToken;
 import com.freelancer.auth.entity.User;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -33,6 +36,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtService             jwtService;
     private final PasswordEncoder        passwordEncoder;
     private final ProfileServiceClient profileServiceClient;
+    private final NotificationClient notificationClient;
 
     @Override
     @Transactional
@@ -55,6 +59,14 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         userRepository.save(user);
+        notificationClient.send(
+        	    "WELCOME",
+        	    user.getEmail(),
+        	    user.getFirstName() + " " + user.getLastName(),
+        	    Map.of(
+        	        "firstName", user.getFirstName()
+        	    )
+        	);
         log.info("Registered: {} [{}]", user.getEmail(), user.getRole());
 
         // Auto-create profile based on role
@@ -178,6 +190,21 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
                 .user(userResponse)     // ← single nested object
+                .build();
+    }
+    @Override
+    public UserInfoResponse getUserById(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new AuthException(
+                        "User not found: " + userId));
+
+        return UserInfoResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .fullName(user.getFirstName() + " " + user.getLastName())
+                .role(user.getRole())
                 .build();
     }
 }

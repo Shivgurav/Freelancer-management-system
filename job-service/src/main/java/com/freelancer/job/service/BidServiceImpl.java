@@ -1,5 +1,7 @@
 package com.freelancer.job.service;
 
+import com.freelancer.job.client.AuthClient;
+import com.freelancer.job.client.AuthClient.UserInfo;
 import com.freelancer.job.client.NotificationClient;
 import com.freelancer.job.dto.request.BidRequest;
 import com.freelancer.job.dto.response.BidResponse;
@@ -33,6 +35,7 @@ public class BidServiceImpl implements BidService {
     private final JobPostRepository jobPostRepository;
     private final WebClient.Builder webClientBuilder;
     private final NotificationClient notificationClient;
+    private final AuthClient authClient;
 
     // Read service URLs from application.yml
     // Uses Eureka service name — NOT localhost
@@ -48,17 +51,20 @@ public class BidServiceImpl implements BidService {
             BidRepository bidRepository,
             JobPostRepository jobPostRepository,
             WebClient.Builder webClientBuilder,
-            NotificationClient notificationClient) {
+            NotificationClient notificationClient,
+            AuthClient authClient) {
         this.bidRepository     = bidRepository;
         this.jobPostRepository = jobPostRepository;
         this.webClientBuilder  = webClientBuilder;
         this.notificationClient=notificationClient;
+        this.authClient=authClient;
     }
 
     @Override
     @Transactional
     public BidResponse submitBid(UUID jobId,
                                   UUID freelancerId,
+                                  UUID clientId,
                                   BidRequest request) {
         JobPost job = findJobById(jobId);
 
@@ -83,8 +89,22 @@ public class BidServiceImpl implements BidService {
                 .estimatedDays(request.getEstimatedDays())
                 .status(BidStatus.PENDING)
                 .build();
-
+        UserInfo clientInfo=authClient.getUserInfo(clientId);
+        UserInfo freelancerInfo=authClient.getUserInfo(freelancerId);
+        
         bidRepository.save(bid);
+        notificationClient.send(
+        	    "BID_RECEIVED",
+        	    clientInfo.getEmail(),
+        	    clientInfo.getFullName(),
+        	    Map.of(
+        	        "jobTitle",       job.getTitle(),
+        	        "freelancerName", freelancerInfo.getFullName(),
+        	        "bidAmount",      bid.getBidAmount().toString(),
+        	        "estimatedDays",  bid.getEstimatedDays().toString(),
+        	        "jobId",          job.getId().toString()
+        	    )
+        	);
        
         
 
@@ -133,10 +153,22 @@ public class BidServiceImpl implements BidService {
         if (job.getStatus() != JobStatus.OPEN) {
             throw new JobException("This job is no longer open");
         }
-
+        
+        UserInfo clientInfo=authClient.getUserInfo(clientId);
+      
         // Accept this bid
         bid.setStatus(BidStatus.ACCEPTED);
         bidRepository.save(bid);
+        notificationClient.send(
+        	    "BID_ACCEPTED",
+        	    UserPrincipal.getCurrentUserEmail(),
+        	    UserPrincipal.getCurrentUserName(),
+        	    Map.of(
+        	        "jobTitle",     job.getTitle(),
+        	        "clientName",   clientInfo.getFullName(),
+        	        "agreedAmount", bid.getBidAmount().toString()
+        	    )
+        	);
 
         // Reject all other bids
         bidRepository.rejectAllOtherBids(job, bidId);
@@ -144,16 +176,7 @@ public class BidServiceImpl implements BidService {
         // Close the job
         job.setStatus(JobStatus.CLOSED);
         jobPostRepository.save(job);
-        notificationClient.send(
-        	    "BID_ACCEPTED",
-        	    UserPrincipal.getCurrentUserEmail(),
-        	    UserPrincipal.getFirstName(),
-        	    Map.of(
-        	        "jobTitle",     job.getTitle(),
-        	        "clientName",   "",
-        	        "agreedAmount", bid.getBidAmount().toString()
-        	    )
-        	);
+       
 
         // Auto-create contract in Contract Service
         createContractFromBid(bid, job);
@@ -193,6 +216,7 @@ public class BidServiceImpl implements BidService {
         }
         bid.setStatus(BidStatus.WITHDRAWN);
         bidRepository.save(bid);
+      
 
         JobPost job = bid.getJobPost();
         job.setTotalBids(Math.max(0, job.getTotalBids() - 1));
