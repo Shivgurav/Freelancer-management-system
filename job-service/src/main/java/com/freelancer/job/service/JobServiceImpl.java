@@ -1,5 +1,6 @@
 package com.freelancer.job.service;
 
+import com.freelancer.job.client.NotificationClient;
 import com.freelancer.job.dto.request.JobRequest;
 import com.freelancer.job.dto.response.JobResponse;
 import com.freelancer.job.entity.JobPost;
@@ -7,6 +8,7 @@ import com.freelancer.job.enums.JobStatus;
 import com.freelancer.job.exception.JobException;
 import com.freelancer.job.exception.ResourceNotFoundException;
 import com.freelancer.job.repository.JobPostRepository;
+import com.freelancer.job.security.UserPrincipal;
 import com.freelancer.job.service.JobService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,10 +27,12 @@ import java.util.stream.Collectors;
 public class JobServiceImpl implements JobService {
 
     private final JobPostRepository jobPostRepository;
+    private final NotificationClient notificationClient;
 
     @Override
     @Transactional
     public JobResponse createJob(UUID clientId, JobRequest request) {
+    	
 
         // Convert skill list to comma-separated string
         String skillsStr = request.getRequiredSkills() != null
@@ -50,6 +55,17 @@ public class JobServiceImpl implements JobService {
         jobPostRepository.save(job);
         log.info("Job created by clientId: {} — title: {}",
                 clientId, job.getTitle());
+        String email=UserPrincipal.getCurrentUserEmail();
+        notificationClient.send(
+        	    "JOB_POSTED",
+        	    email,     // you need to store or pass client email
+        	    "",
+        	    Map.of(
+        	        "jobTitle",   job.getTitle(),
+        	        "budgetMin",  job.getBudgetMin().toString(),
+        	        "budgetMax",  job.getBudgetMax().toString()
+        	    )
+        	);
         return mapToResponse(job);
     }
 

@@ -6,9 +6,9 @@ spring:
     name: job-service
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/job_db}
-    username: ${SPRING_DATASOURCE_USERNAME:job_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:job_pass}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-polished-fog-amshlcjk-pooler.c-5.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_3WGAnNgYMzw0}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -33,10 +33,12 @@ eureka:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
 
+services:
+  contract: ${CONTRACT_SERVICE_URL:http://contract-service}
+  notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
+
 # Notification service URL — used for sending emails
-notification:
-  service:
-    url: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
+
 
 management:
   endpoints:

@@ -6,9 +6,9 @@ spring:
     name: review-service
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5437/review_db}
-    username: ${SPRING_DATASOURCE_USERNAME:review_user}
-    password: ${SPRING_DATASOURCE_PASSWORD:review_pass}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-polished-fog-amshlcjk-pooler.c-5.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_3WGAnNgYMzw0}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -36,11 +36,11 @@ eureka:
 # URLs for calling other services
 contract:
   service:
-    url: ${CONTRACT_SERVICE_URL:http://localhost:8084}
+    url: ${CONTRACT_SERVICE_URL:http://contract-service}
 
 profile:
   service:
-    url: ${PROFILE_SERVICE_URL:http://localhost:8082}
+    url: ${PROFILE_SERVICE_URL:http://profile-service}
 
 management:
   endpoints:

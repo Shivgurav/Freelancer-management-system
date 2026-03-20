@@ -135,7 +135,6 @@ public class ProfileController {
 
     // Get my client profile
     @GetMapping("/client/me")
-    @PreAuthorize("hasRole('CLIENT')")
     public ResponseEntity<ClientProfileResponse> getMyClientProfile() {
         UUID userId = UserPrincipal.getCurrentUserId();
         return ResponseEntity.ok(

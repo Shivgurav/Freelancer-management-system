@@ -33,6 +33,10 @@ eureka:
   prefer-ip-address: true
   instance-id: ${spring.application.name}:${server.port}
 
+notification:
+  service:
+    url: ${NOTIFICATION_SERVICE_URL:http://notification-service}
+
 management:
   endpoints:
     web:

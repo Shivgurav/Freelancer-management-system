@@ -47,7 +47,10 @@ management:
 
 profile:
  service:
-  url: ${PROFILE_SERVICE_URL:http://localhost:8082}
+  url: ${PROFILE_SERVICE_URL:http://profile-service}
+notification:
+ service:
+  url: ${NOTIFICATION_SERVICE_URL:http://notification-service}
 
 logging:
   level:
