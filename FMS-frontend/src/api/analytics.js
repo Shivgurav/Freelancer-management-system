@@ -1,17 +1,17 @@
-import { apiFetch } from "./config";
+// ⚠️ Analytics Service is under development — gateway route is disabled.
 
-export function getJobAnalytics() {
-  return apiFetch("/analytics/jobs");
+export async function getJobAnalytics() {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function getFreelancerAnalytics() {
-  return apiFetch("/analytics/freelancers");
+export async function getFreelancerAnalytics() {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function getBidAnalytics() {
-  return apiFetch("/analytics/bids");
+export async function getBidAnalytics() {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function getOverviewAnalytics() {
-  return apiFetch("/analytics/overview");
+export async function getOverviewAnalytics() {
+  throw new Error("UNDER_DEVELOPMENT");
 }

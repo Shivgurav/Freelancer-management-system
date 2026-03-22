@@ -1,25 +1,17 @@
-import { apiUpload, apiFetch } from "./config";
+// ⚠️ File Service is under development — gateway route is disabled.
 
-export function uploadResume(file) {
-  const form = new FormData();
-  form.append("file", file);
-  return apiUpload("/files/resume", form);
+export async function uploadResume(file) {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function uploadProjectDoc(file, projectId) {
-  const form = new FormData();
-  form.append("file", file);
-  if (projectId) form.append("projectId", projectId);
-  return apiUpload("/files/project-doc", form);
+export async function uploadProjectDoc(file, projectId) {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function uploadProgressFile(file, contractId) {
-  const form = new FormData();
-  form.append("file", file);
-  if (contractId) form.append("contractId", contractId);
-  return apiUpload("/files/progress", form);
+export async function uploadProgressFile(file, contractId) {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function downloadFile(fileId) {
-  return apiFetch(`/files/${fileId}/download`);
+export async function downloadFile(fileId) {
+  throw new Error("UNDER_DEVELOPMENT");
 }

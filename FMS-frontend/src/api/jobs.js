@@ -1,5 +1,7 @@
 import { apiFetch } from "./config";
 
+// POST /api/jobs  (CLIENT only)
+// body: { title, description, budgetMin, budgetMax, durationDays, experienceLevel, requiredSkills[] }
 export function createJob(jobData) {
   return apiFetch("/jobs", {
     method: "POST",
@@ -7,36 +9,32 @@ export function createJob(jobData) {
   });
 }
 
-export function getJobs({ skill, budget, page = 0, size = 20 } = {}) {
-  const params = new URLSearchParams();
-  if (skill) params.set("skill", skill);
-  if (budget) params.set("budget", budget);
-  params.set("page", page);
-  params.set("size", size);
-  return apiFetch(`/jobs?${params.toString()}`);
+// GET /api/jobs  — returns List<JobResponse> (no pagination wrapper)
+export function getAllOpenJobs() {
+  return apiFetch("/jobs");
 }
 
+// GET /api/jobs/{jobId}
 export function getJobById(jobId) {
   return apiFetch(`/jobs/${jobId}`);
 }
 
-export function submitBid(jobId, bidData) {
-  return apiFetch(`/jobs/${jobId}/bids`, {
-    method: "POST",
-    body: JSON.stringify(bidData),
-  });
+// GET /api/jobs/my-jobs  (CLIENT only)
+export function getMyJobs() {
+  return apiFetch("/jobs/my-jobs");
 }
 
-export function acceptBid(bidId) {
-  return apiFetch(`/bids/${bidId}/accept`, {
-    method: "PUT",
-  });
+// GET /api/jobs/search?keyword=xxx
+export function searchJobsByTitle(keyword) {
+  return apiFetch(`/jobs/search?keyword=${encodeURIComponent(keyword)}`);
 }
 
-export function getMyBids() {
-  return apiFetch("/bids/me");
+// GET /api/jobs/search/skill?skill=xxx
+export function searchJobsBySkill(skill) {
+  return apiFetch(`/jobs/search/skill?skill=${encodeURIComponent(skill)}`);
 }
 
-export function getBidsForJob(jobId) {
-  return apiFetch(`/jobs/${jobId}/bids`);
+// PATCH /api/jobs/{jobId}/cancel  (CLIENT only)
+export function cancelJob(jobId) {
+  return apiFetch(`/jobs/${jobId}/cancel`, { method: "PATCH" });
 }

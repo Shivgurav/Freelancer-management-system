@@ -1,5 +1,7 @@
 import { apiFetch } from "./config";
 
+// POST /api/reviews  (CLIENT or FREELANCER)
+// body: { contractId, revieweeId, rating, comment }
 export function submitReview(reviewData) {
   return apiFetch("/reviews", {
     method: "POST",
@@ -7,16 +9,17 @@ export function submitReview(reviewData) {
   });
 }
 
-export function getFreelancerReviews(freelancerId) {
-  const params = freelancerId ? `?freelancerId=${freelancerId}` : "";
-  return apiFetch(`/reviews/freelancer${params}`);
+// GET /api/reviews/user/{userId}  — reviews received by a user (public)
+export function getReviewsForUser(userId) {
+  return apiFetch(`/reviews/user/${userId}`);
 }
 
-export function getClientReviews(clientId) {
-  const params = clientId ? `?clientId=${clientId}` : "";
-  return apiFetch(`/reviews/client${params}`);
+// GET /api/reviews/contract/{contractId}  (CLIENT or FREELANCER)
+export function getReviewsForContract(contractId) {
+  return apiFetch(`/reviews/contract/${contractId}`);
 }
 
-export function getContractReviews(contractId) {
-  return apiFetch(`/reviews/contract?contractId=${contractId}`);
+// GET /api/reviews/my-reviews  (CLIENT or FREELANCER) — reviews I wrote
+export function getMyReviews() {
+  return apiFetch("/reviews/my-reviews");
 }

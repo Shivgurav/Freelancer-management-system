@@ -1,6 +1,6 @@
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { useAppStore } from "@/store/use-app-store";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Landing from "@/pages/landing";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
@@ -17,17 +17,42 @@ import Bids from "@/pages/bids";
 import NotFoundPage from "@/pages/not-found";
 
 function DashboardRedirect() {
-  const currentRole = useAppStore((s) => s.currentRole);
+  const { currentRole, isAuthenticated } = useAppStore();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Navigate to={`/dashboard/${currentRole}`} replace />;
 }
 
+// Shown while initAuth is running — prevents the login flash
+function InitSpinner() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-[3px] border-primary/20 border-t-primary rounded-full animate-spin" />
+        <p className="text-[13px] text-ink-3">Loading…</p>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const { initAuth, loadNotifications } = useAppStore();
+  const { initAuth, loadNotifications, isAuthenticated } = useAppStore();
+  const [initialising, setInitialising] = useState(true);
 
   useEffect(() => {
-    initAuth();
-    loadNotifications();
+    initAuth()
+      .then(() => {
+        // Only load notifications if we are actually authenticated
+        if (useAppStore.getState().isAuthenticated) {
+          loadNotifications();
+        }
+      })
+      .finally(() => {
+        setInitialising(false);
+      });
   }, []);
+
+  // Block rendering until we know the auth state — eliminates the flash
+  if (initialising) return <InitSpinner />;
 
   return (
     <BrowserRouter>

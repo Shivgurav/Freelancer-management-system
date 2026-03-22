@@ -1,16 +1,14 @@
-import { apiFetch } from "./config";
+// ⚠️ Message Service is under development — no backend routes yet.
+// These functions will throw; callers should handle gracefully.
 
-export function getConversations() {
-  return apiFetch("/messages/conversations");
+export async function getConversations() {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function getMessages(contactId) {
-  return apiFetch(`/messages/${contactId}`);
+export async function getMessages(contactId) {
+  throw new Error("UNDER_DEVELOPMENT");
 }
 
-export function sendMessage(contactId, text) {
-  return apiFetch(`/messages/${contactId}`, {
-    method: "POST",
-    body: JSON.stringify({ text }),
-  });
+export async function sendMessage(contactId, text) {
+  throw new Error("UNDER_DEVELOPMENT");
 }

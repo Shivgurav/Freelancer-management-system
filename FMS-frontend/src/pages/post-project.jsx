@@ -4,17 +4,15 @@ import { SkillTag } from "@/components/ui/skill-tag";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, CheckCircle } from "lucide-react";
-import { useAppStore } from "@/store/use-app-store";
 
 export default function PostProject() {
   const navigate = useNavigate();
-  const { user } = useAppStore();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [budgetMin, setBudgetMin] = useState("1200");
-  const [budgetMax, setBudgetMax] = useState("2500");
-  const [deadline, setDeadline] = useState("");
-  const [budgetType, setBudgetType] = useState("Fixed Price");
+  const [budgetMin, setBudgetMin] = useState("");
+  const [budgetMax, setBudgetMax] = useState("");
+  const [durationDays, setDurationDays] = useState("");
+  const [experienceLevel, setExperienceLevel] = useState("INTERMEDIATE");
   const [skills, setSkills] = useState([]);
   const [newSkill, setNewSkill] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,12 +34,12 @@ export default function PostProject() {
     try {
       await createProject({
         title: title.trim(),
-        description: description.trim() || "No description provided.",
+        description: description.trim() || "",
+        budgetMin: budgetMin ? Number(budgetMin) : null,
+        budgetMax: budgetMax ? Number(budgetMax) : null,
+        durationDays: durationDays ? Number(durationDays) : null,
+        experienceLevel,
         skills,
-        budgetMin: Number(budgetMin) || 0,
-        budgetMax: Number(budgetMax) || 0,
-        budgetType,
-        deadline: deadline || undefined,
       });
       navigate("/tracking");
     } catch (err) {
@@ -95,6 +93,8 @@ export default function PostProject() {
                 type="number"
                 value={budgetMin}
                 onChange={(e) => setBudgetMin(e.target.value)}
+                placeholder="500"
+                min="0"
                 className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
               />
             </div>
@@ -104,6 +104,8 @@ export default function PostProject() {
                 type="number"
                 value={budgetMax}
                 onChange={(e) => setBudgetMax(e.target.value)}
+                placeholder="2000"
+                min="0"
                 className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
               />
             </div>
@@ -111,24 +113,27 @@ export default function PostProject() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[13px] font-medium text-ink-2 mb-2">Budget Type</label>
-              <select
-                value={budgetType}
-                onChange={(e) => setBudgetType(e.target.value)}
-                className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary transition-all"
-              >
-                <option>Fixed Price</option>
-                <option>Hourly Rate</option>
-              </select>
+              <label className="block text-[13px] font-medium text-ink-2 mb-2">Duration (Days)</label>
+              <input
+                type="number"
+                value={durationDays}
+                onChange={(e) => setDurationDays(e.target.value)}
+                placeholder="30"
+                min="1"
+                className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+              />
             </div>
             <div>
-              <label className="block text-[13px] font-medium text-ink-2 mb-2">Deadline</label>
-              <input
-                type="date"
-                value={deadline}
-                onChange={(e) => setDeadline(e.target.value)}
+              <label className="block text-[13px] font-medium text-ink-2 mb-2">Experience Level</label>
+              <select
+                value={experienceLevel}
+                onChange={(e) => setExperienceLevel(e.target.value)}
                 className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary transition-all"
-              />
+              >
+                <option value="ENTRY">Entry Level</option>
+                <option value="INTERMEDIATE">Intermediate</option>
+                <option value="EXPERT">Expert</option>
+              </select>
             </div>
           </div>
 
@@ -147,7 +152,7 @@ export default function PostProject() {
                 value={newSkill}
                 onChange={(e) => setNewSkill(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addSkill())}
-                placeholder="Add a skill..."
+                placeholder="Add a skill and press Enter..."
                 className="flex-1 border-[1.5px] border-border rounded-lg px-3.5 py-2 text-[13px] bg-background focus:outline-none focus:border-primary transition-all"
               />
               <button

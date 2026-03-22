@@ -17,9 +17,10 @@ export default function Login() {
     e.preventDefault();
     setLocalError("");
     try {
-      const data = await login({ email: email.trim(), password });
-      const role = data?.user?.role || data?.role || "client";
-      navigate(`/dashboard/${role}`);
+      const { role } = await login({ email: email.trim(), password });
+      // Role from backend is uppercase: CLIENT or FREELANCER
+      const dashRole = (role || "CLIENT").toLowerCase();
+      navigate(`/dashboard/${dashRole}`);
     } catch (err) {
       setLocalError(err.message);
     }
@@ -77,19 +78,11 @@ export default function Login() {
             onClick={() => setRemember(!remember)}
             className="flex items-center gap-2 text-[12.5px] text-ink-2"
           >
-            <div
-              className={cn(
-                "w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-all",
-                remember ? "bg-primary border-primary" : "border-border"
-              )}
-            >
+            <div className={cn("w-4 h-4 rounded border-[1.5px] flex items-center justify-center transition-all", remember ? "bg-primary border-primary" : "border-border")}>
               {remember && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
             </div>
             Remember me
           </button>
-          <span className="text-[12.5px] text-primary font-medium cursor-pointer hover:underline">
-            Forgot password?
-          </span>
         </div>
 
         <button
@@ -102,7 +95,7 @@ export default function Login() {
       </form>
 
       <p className="text-center text-[13px] text-ink-3 mt-6">
-        Don't have an account?{" "}
+        Don&apos;t have an account?{" "}
         <Link to="/register" className="text-primary font-semibold hover:underline">
           Sign up
         </Link>

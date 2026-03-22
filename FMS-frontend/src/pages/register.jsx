@@ -21,10 +21,13 @@ export default function Register() {
       setLocalError("First name and last name are required.");
       return;
     }
+    if (password.length < 6) {
+      setLocalError("Password must be at least 6 characters.");
+      return;
+    }
     try {
-      const data = await register({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), password, role: selectedRole });
-      console.log(data);
-      navigate(`/dashboard/${selectedRole}`);
+      await register({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), password, role: selectedRole });
+      navigate(`/dashboard/${selectedRole.toLowerCase()}`);
     } catch (err) {
       setLocalError(err.message);
     }
@@ -112,8 +115,9 @@ export default function Register() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="At least 8 characters"
+            placeholder="At least 6 characters"
             required
+            minLength={6}
             className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary focus:bg-surface focus:ring-4 focus:ring-primary/10 transition-all"
           />
         </div>
