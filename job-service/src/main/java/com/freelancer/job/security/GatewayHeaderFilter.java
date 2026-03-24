@@ -5,13 +5,17 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.authentication
+        .UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority
+        .SimpleGrantedAuthority;
+import org.springframework.security.core.context
+        .SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 @Slf4j
@@ -19,9 +23,10 @@ import java.util.List;
 public class GatewayHeaderFilter extends OncePerRequestFilter {
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request,
-                                    HttpServletResponse response,
-                                    FilterChain filterChain)
+    protected void doFilterInternal(
+            HttpServletRequest  request,
+            HttpServletResponse response,
+            FilterChain         chain)
             throws ServletException, IOException {
 
         String userId    = request.getHeader("X-User-Id");
@@ -30,39 +35,53 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
         String firstName = request.getHeader("X-User-FirstName");
         String lastName  = request.getHeader("X-User-LastName");
 
-        if (userId != null && role != null) {
-            List<SimpleGrantedAuthority> authorities = List.of(
-                    new SimpleGrantedAuthority("ROLE_" + role));
+        // Log every request so you can debug
+        log.info("▶ {} {} | userId={} role={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                userId, role);
 
-            // Build full name from headers
-            String fullName = "";
-            if (firstName != null && lastName != null) {
-                fullName = firstName + " " + lastName;
-            } else if (firstName != null) {
-                fullName = firstName;
-            }
+        if (userId != null && role != null
+                && !userId.isBlank() && !role.isBlank()) {
 
-            // We store extra info in a custom auth token
-            // principal   = userId
-            // credentials = email
-            // details     = fullName  ← store name here
+            // ROLE_ prefix is mandatory for Spring Security
+            // hasRole('CLIENT') checks for 'ROLE_CLIENT'
+            SimpleGrantedAuthority authority =
+                    new SimpleGrantedAuthority("ROLE_" + role);
+
+            String fullName = buildFullName(firstName, lastName);
+
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
-                            userId,    // principal
-                            email,     // credentials
-                            authorities);
+                            userId,                    // principal
+                            email,                     // credentials
+                            Collections.singletonList(authority));
 
-            // Store fullName in details
             auth.setDetails(fullName);
 
-            SecurityContextHolder.getContext()
+            SecurityContextHolder
+                    .getContext()
                     .setAuthentication(auth);
 
-            log.debug("Security context set — " +
-                      "userId: {} role: {} name: {}",
-                    userId, role, fullName);
+            log.info("✓ Auth set — userId={} role={} authority={}",
+                    userId, role, authority.getAuthority());
+
+        } else {
+            log.warn("✗ Missing headers — userId={} role={} " +
+                     "path={}", userId, role,
+                    request.getRequestURI());
         }
 
-        filterChain.doFilter(request, response);
+        chain.doFilter(request, response);
+    }
+
+    private String buildFullName(String firstName,
+                                  String lastName) {
+        if (firstName != null && lastName != null) {
+            return firstName + " " + lastName;
+        } else if (firstName != null) {
+            return firstName;
+        }
+        return "";
     }
 }

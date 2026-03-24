@@ -20,7 +20,6 @@ import com.freelancer.profile.repository.FreelancerProfileRepository;
 import com.freelancer.profile.repository.FreelancerSkillRepository;
 import com.freelancer.profile.repository.SkillRepository;
 import com.freelancer.profile.security.UserPrincipal;
-import com.freelancer.profile.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -42,12 +41,8 @@ public class ProfileServiceImpl implements ProfileService {
     private final ClientProfileRepository     clientProfileRepository;
     private final SkillRepository             skillRepository;
     private final FreelancerSkillRepository   freelancerSkillRepository;
-    private final NotificationClient notificationClient;
-    private final SearchClient searchClient;
-
-    // ══════════════════════════════════════════════════════════════
-    // FREELANCER
-    // ══════════════════════════════════════════════════════════════
+    private final NotificationClient          notificationClient;
+    private final SearchClient                searchClient;
 
     @Override
     @Transactional
@@ -75,7 +70,6 @@ public class ProfileServiceImpl implements ProfileService {
 
         profile = freelancerProfileRepository.save(profile);
         searchClient.syncFreelancerProfile(buildSyncData(profile));
-    
 
         if (request.getSkills() != null) {
             for (SkillRequest sr : request.getSkills()) {
@@ -88,28 +82,7 @@ public class ProfileServiceImpl implements ProfileService {
                 freelancerProfileRepository.findById(profile.getId()).get());
     }
 
-    private Map<String, Object> buildSyncData(FreelancerProfile p) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("id",                  p.getId().toString());
-        data.put("userId",              p.getUserId().toString());
-        data.put("title",               p.getTitle());
-        data.put("location",            p.getLocation());
-        data.put("hourlyRate",          p.getHourlyRate());
-        data.put("yearsOfExperience",   p.getYearsOfExperience());
-        data.put("availability",        p.getAvailability() != null
-                ? p.getAvailability().name() : "FULL_TIME");
-        data.put("avgRating",           p.getAvgRating());
-        data.put("totalReviews",        p.getTotalReviews());
-        data.put("totalJobsCompleted",  p.getTotalJobsCompleted());
-        // Convert skills to list of names
-        List<String> skillNames = p.getFreelancerSkills().stream()
-                .map(fs -> fs.getSkill().getName())
-                .collect(Collectors.toList());
-        data.put("skills", skillNames);
-        return data;
-    }
-
-	@Override
+    @Override
     public ProfileResponse getMyFreelancerProfile(UUID userId) {
         return mapFreelancerToResponse(
                 freelancerProfileRepository.findByUserId(userId)
@@ -156,16 +129,23 @@ public class ProfileServiceImpl implements ProfileService {
         freelancerProfileRepository.save(profile);
         searchClient.syncFreelancerProfile(buildSyncData(profile));
 
-        notificationClient.send(
-            "PROFILE_UPDATED",
-            UserPrincipal.getCurrentUserEmail(),
-            UserPrincipal.getCurrentUserName(),
-            Map.of(
-                "userId" ,  "${userID}",
-                "title" ,request.getTitle()
-                
-            )
-        );
+        // FIX 1: Was sending "${userID}" as a literal string — not a variable.
+        // FIX 2: request.getTitle() can be null if only other fields updated
+        //        — Map.of() throws NullPointerException on null values.
+        String email = UserPrincipal.getCurrentUserEmail();
+        String name  = UserPrincipal.getCurrentUserName();
+        if (email != null) {
+            notificationClient.send(
+                "PROFILE_UPDATED",
+                email,
+                name != null ? name : "User",
+                Map.of(
+                    "userId", userId.toString(),
+                    "title",  profile.getTitle() != null ? profile.getTitle() : ""
+                )
+            );
+        }
+
         log.info("Freelancer profile updated for userId: {}", userId);
         return mapFreelancerToResponse(profile);
     }
@@ -215,15 +195,10 @@ public class ProfileServiceImpl implements ProfileService {
                 .collect(Collectors.toList());
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // CLIENT
-    // ══════════════════════════════════════════════════════════════
-
     @Override
     @Transactional
     public ClientProfileResponse createClientProfile(
             UUID userId, ClientProfileRequest request) {
-
         if (clientProfileRepository.existsByUserId(userId)) {
             throw new ProfileException(
                     "Client profile already exists for this user");
@@ -231,8 +206,8 @@ public class ProfileServiceImpl implements ProfileService {
 
         ClientProfile profile = ClientProfile.builder()
                 .userId(userId)
-                .firstName(request.getFirstName())   // ← person's name
-                .lastName(request.getLastName())      // ← person's name
+                .firstName(request.getFirstName())
+                .lastName(request.getLastName())
                 .companyName(request.getCompanyName())
                 .description(request.getDescription())
                 .industry(request.getIndustry())
@@ -251,42 +226,100 @@ public class ProfileServiceImpl implements ProfileService {
     @Transactional
     public ClientProfileResponse updateClientProfile(
             UUID userId, ClientProfileRequest request) {
-
         ClientProfile profile = clientProfileRepository
                 .findByUserId(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Client profile not found"));
 
-        // Update person name if provided
-        if (request.getFirstName() != null)
-            profile.setFirstName(request.getFirstName());
-        if (request.getLastName() != null)
-            profile.setLastName(request.getLastName());
-
-        // Update company details if provided
-        if (request.getCompanyName() != null)
-            profile.setCompanyName(request.getCompanyName());
-        if (request.getDescription() != null)
-            profile.setDescription(request.getDescription());
-        if (request.getIndustry() != null)
-            profile.setIndustry(request.getIndustry());
-        if (request.getCompanySize() != null)
-            profile.setCompanySize(request.getCompanySize());
-        if (request.getLocation() != null)
-            profile.setLocation(request.getLocation());
-        if (request.getWebsiteUrl() != null)
-            profile.setWebsiteUrl(request.getWebsiteUrl());
-        if (request.getLinkedinUrl() != null)
-            profile.setLinkedinUrl(request.getLinkedinUrl());
+        if (request.getFirstName() != null)   profile.setFirstName(request.getFirstName());
+        if (request.getLastName() != null)    profile.setLastName(request.getLastName());
+        if (request.getCompanyName() != null) profile.setCompanyName(request.getCompanyName());
+        if (request.getDescription() != null) profile.setDescription(request.getDescription());
+        if (request.getIndustry() != null)    profile.setIndustry(request.getIndustry());
+        if (request.getCompanySize() != null) profile.setCompanySize(request.getCompanySize());
+        if (request.getLocation() != null)    profile.setLocation(request.getLocation());
+        if (request.getWebsiteUrl() != null)  profile.setWebsiteUrl(request.getWebsiteUrl());
+        if (request.getLinkedinUrl() != null) profile.setLinkedinUrl(request.getLinkedinUrl());
 
         clientProfileRepository.save(profile);
         log.info("Client profile updated for userId: {}", userId);
         return mapClientToResponse(profile);
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // Private helpers
-    // ══════════════════════════════════════════════════════════════
+    @Override
+    public ClientProfileResponse getMyClientProfile(UUID userId) {
+        ClientProfile profile = clientProfileRepository
+                .findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Client profile not found. Please complete your profile first."));
+        return mapClientToResponse(profile);
+    }
+
+    @Override
+    public ClientProfileResponse getClientProfileById(UUID profileId) {
+        ClientProfile profile = clientProfileRepository
+                .findById(profileId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Client profile not found with id: " + profileId));
+        return mapClientToResponse(profile);
+    }
+
+    @Override
+    @Transactional
+    public void updateFreelancerRating(UUID userId,
+                                        BigDecimal avgRating,
+                                        int totalReviews) {
+        FreelancerProfile profile = freelancerProfileRepository
+                .findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Freelancer profile not found"));
+        profile.setAvgRating(avgRating);
+        profile.setTotalReviews(totalReviews);
+        freelancerProfileRepository.save(profile);
+        searchClient.updateRating(profile.getId(),
+                profile.getAvgRating().doubleValue(),
+                profile.getTotalReviews());
+        log.info("Updated freelancer rating: userId={} avg={} total={}",
+                userId, avgRating, totalReviews);
+    }
+
+    @Override
+    @Transactional
+    public void updateClientRating(UUID userId,
+                                    BigDecimal avgRating,
+                                    int totalReviews) {
+        ClientProfile profile = clientProfileRepository
+                .findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Client profile not found"));
+        profile.setAvgRating(avgRating);
+        profile.setTotalReviews(totalReviews);
+        clientProfileRepository.save(profile);
+        log.info("Updated client rating: userId={} avg={} total={}",
+                userId, avgRating, totalReviews);
+    }
+
+    // ── Private helpers ───────────────────────────────────────────
+
+    private Map<String, Object> buildSyncData(FreelancerProfile p) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id",               p.getId().toString());
+        data.put("userId",           p.getUserId().toString());
+        data.put("title",            p.getTitle());
+        data.put("location",         p.getLocation());
+        data.put("hourlyRate",       p.getHourlyRate());
+        data.put("yearsOfExperience",p.getYearsOfExperience());
+        data.put("availability",     p.getAvailability() != null
+                ? p.getAvailability().name() : "FULL_TIME");
+        data.put("avgRating",        p.getAvgRating());
+        data.put("totalReviews",     p.getTotalReviews());
+        data.put("totalJobsCompleted", p.getTotalJobsCompleted());
+        List<String> skillNames = p.getFreelancerSkills().stream()
+                .map(fs -> fs.getSkill().getName())
+                .collect(Collectors.toList());
+        data.put("skills", skillNames);
+        return data;
+    }
 
     private FreelancerSkill addSkillToProfile(FreelancerProfile profile,
                                                SkillRequest sr) {
@@ -342,8 +375,8 @@ public class ProfileServiceImpl implements ProfileService {
         return ClientProfileResponse.builder()
                 .id(p.getId())
                 .userId(p.getUserId())
-                .firstName(p.getFirstName())       // ← added
-                .lastName(p.getLastName())          // ← added
+                .firstName(p.getFirstName())
+                .lastName(p.getLastName())
                 .companyName(p.getCompanyName())
                 .description(p.getDescription())
                 .industry(p.getIndustry())
@@ -367,65 +400,5 @@ public class ProfileServiceImpl implements ProfileService {
                 .category(fs.getSkill().getCategory())
                 .proficiencyLevel(fs.getProficiencyLevel())
                 .build();
-    }
-
- // ── Get my client profile ─────────────────────────────────────────
-    @Override
-    public ClientProfileResponse getMyClientProfile(UUID userId) {
-
-        ClientProfile profile = clientProfileRepository
-                .findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Client profile not found. " +
-                        "Please complete your profile first."));
-
-        return mapClientToResponse(profile);
-    }
-
-    // ── Get client profile by ID (public) ────────────────────────────
-    @Override
-    public ClientProfileResponse getClientProfileById(UUID profileId) {
-
-        ClientProfile profile = clientProfileRepository
-                .findById(profileId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Client profile not found with id: " + profileId));
-
-        return mapClientToResponse(profile);
-    }
- // In ProfileServiceImpl — implement them
-    @Override
-    @Transactional
-    public void updateFreelancerRating(UUID userId,
-                                        BigDecimal avgRating,
-                                        int totalReviews) {
-        FreelancerProfile profile = freelancerProfileRepository
-                .findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Freelancer profile not found"));
-        profile.setAvgRating(avgRating);
-        profile.setTotalReviews(totalReviews);
-        freelancerProfileRepository.save(profile);
-        searchClient.updateRating(profile.getId(),
-                profile.getAvgRating().doubleValue(),
-                profile.getTotalReviews());
-        log.info("Updated freelancer rating: userId={} avg={} total={}",
-                userId, avgRating, totalReviews);
-    }
-
-    @Override
-    @Transactional
-    public void updateClientRating(UUID userId,
-                                    BigDecimal avgRating,
-                                    int totalReviews) {
-        ClientProfile profile = clientProfileRepository
-                .findByUserId(userId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Client profile not found"));
-        profile.setAvgRating(avgRating);
-        profile.setTotalReviews(totalReviews);
-        clientProfileRepository.save(profile);
-        log.info("Updated client rating: userId={} avg={} total={}",
-                userId, avgRating, totalReviews);
     }
 }

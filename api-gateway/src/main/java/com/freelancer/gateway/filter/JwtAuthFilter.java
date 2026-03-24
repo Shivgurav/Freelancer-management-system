@@ -22,7 +22,6 @@ import reactor.core.publisher.Mono;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
-import java.util.regex.Pattern;
 import java.util.List;
 
 @Slf4j
@@ -33,69 +32,18 @@ public class JwtAuthFilter extends
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    // ── Exact public paths — must match exactly ───────────────────
-    // These paths skip JWT validation completely
-    private static final List<String> PUBLIC_EXACT = List.of(
+    // FIX 1: Added /api/auth/user/** so internal service calls to auth-service work.
+    // FIX 2: Added /api/profiles/freelancer/init and /api/profiles/client/init
+    //        so auth-service can auto-create profiles after registration.
+    private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/register",
             "/api/auth/login",
             "/api/auth/refresh",
-            "/api/profiles/skills",
-            "/api/jobs",
-            "/api/notifications/send",
-            "/api/search/freelancers/top-rated",
-            "/api/search/jobs/latest"
-    );
-
-    // ── Prefix public paths — anything starting with these ────────
-    // Be VERY careful here — only truly public prefixes
-    private static final List<String> PUBLIC_PREFIXES = List.of(
-    	    "/api/auth/register",
-    	    "/api/auth/login",
-    	    "/api/auth/refresh",
-    	    "/api/auth/user/",
-    	    "/api/profiles/skills",
-    	    "/api/search/sync/",
-    	    "/api/search/freelancers/top-rated",
-    	    "/api/search/jobs/latest",
-    	    "/api/notifications/send",
-    	    "/api/reviews/user/",
-    	    "/api/messages/room",
-    	    "/ws/",              // ← WebSocket connection
-    	    "/ws/info",          // ← SockJS info endpoint
-    	    "/actuator"
-    	);
-
-    // ── Regex patterns for dynamic public paths ───────────────────
-    // e.g. GET /api/profiles/freelancer/123-uuid  → public
-    // but  GET /api/profiles/freelancer/me         → requires auth
-    private static final List<Pattern> PUBLIC_PATTERNS = List.of(
-            // View a specific freelancer profile by ID (UUID)
-            Pattern.compile(
-                "/api/profiles/freelancer/" +
-                "[0-9a-f]{8}-[0-9a-f]{4}-" +
-                "[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
-
-            // View a specific client profile by ID (UUID)
-            Pattern.compile(
-                "/api/profiles/client/" +
-                "[0-9a-f]{8}-[0-9a-f]{4}-" +
-                "[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
-
-            // View a specific job by ID (UUID) — public
-            Pattern.compile(
-                "/api/jobs/" +
-                "[0-9a-f]{8}-[0-9a-f]{4}-" +
-                "[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"),
-
-            // Public job search
-            Pattern.compile("/api/jobs/search.*"),
-
-            // Public skill search
-            Pattern.compile("/api/profiles/skills/search.*"),
-
-            // Public freelancer search
-            Pattern.compile("/api/search/freelancers.*"),
-            Pattern.compile("/api/search/jobs.*")
+            "/api/auth/user/",           // internal — other services call this
+            "/api/profiles/skills",      // skill browsing
+            "/api/profiles/freelancer/init",  // called by auth-service after register
+            "/api/profiles/client/init",      // called by auth-service after register
+            "/actuator"
     );
 
     public JwtAuthFilter() {
@@ -107,129 +55,80 @@ public class JwtAuthFilter extends
         return (exchange, chain) -> {
 
             ServerHttpRequest request = exchange.getRequest();
-            String path   = request.getURI().getPath();
-            String method = request.getMethod().name();
+            String path = request.getURI().getPath();
 
-            // Step 1 — Check if path is public
-            if (isPublicPath(path, method)) {
-                log.debug("Public path — skipping JWT: {} {}",
-                        method, path);
+            // Step 1 — Skip JWT check for public paths
+            if (isPublicPath(path)) {
+                log.debug("Public path — skipping JWT: {}", path);
                 return chain.filter(exchange);
             }
 
-            // Step 2 — Check Authorization header
+            // Step 2 — Check Authorization header exists
+            // FIX 3: Also check query param "token" for WebSocket connections
             String authHeader = request.getHeaders()
                     .getFirst(HttpHeaders.AUTHORIZATION);
 
-            if (authHeader == null
-                    || !authHeader.startsWith("Bearer ")) {
-                log.warn("Missing Authorization header: {} {}",
-                        method, path);
-                return sendError(exchange,
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                // Check query param for WebSocket upgrade requests
+                String tokenParam = request.getQueryParams().getFirst("token");
+                if (tokenParam != null && !tokenParam.isBlank()) {
+                    authHeader = "Bearer " + tokenParam;
+                }
+            }
+
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                log.warn("Missing or invalid Authorization header for: {}", path);
+                return sendErrorResponse(exchange,
                         HttpStatus.UNAUTHORIZED,
                         "Missing or invalid Authorization header");
             }
 
-            // Step 3 — Validate JWT
+            // Step 3 — Extract and validate JWT
             String token = authHeader.substring(7);
 
             try {
                 Claims claims = extractClaims(token);
 
                 String userId    = claims.getSubject();
-                String role      = claims.get("role", String.class);
-                String email     = claims.get("email", String.class);
-                String firstName = claims.get("firstName",
-                                             String.class);
-                String lastName  = claims.get("lastName",
-                                             String.class);
+                String role      = claims.get("role",      String.class);
+                String email     = claims.get("email",     String.class);
+                String firstName = claims.get("firstName", String.class);
+                String lastName  = claims.get("lastName",  String.class);
 
-                String fullName = buildFullName(firstName, lastName);
-
-                // Step 4 — Remove JWT, inject user headers
+                // Step 4 — Inject user info headers for downstream services
                 ServerHttpRequest mutatedRequest = request.mutate()
                         .header("X-User-Id",        userId)
                         .header("X-User-Role",       role)
                         .header("X-User-Email",      email)
-                        .header("X-User-FirstName",
-                                firstName != null ? firstName : "")
-                        .header("X-User-LastName",
-                                lastName  != null ? lastName  : "")
-                        .header("X-User-FullName",   fullName)
-                        .headers(h -> h.remove(
-                                HttpHeaders.AUTHORIZATION))
+                        .header("X-User-FirstName",  firstName)
+                        .header("X-User-LastName",   lastName)
+                        .headers(headers ->
+                                headers.remove(HttpHeaders.AUTHORIZATION))
                         .build();
 
-                log.debug("JWT valid — userId: {} role: {} path: {}",
-                        userId, role, path);
-
+                log.debug("JWT valid — userId: {} role: {}", userId, role);
                 return chain.filter(
-                        exchange.mutate()
-                                .request(mutatedRequest)
-                                .build());
+                        exchange.mutate().request(mutatedRequest).build());
 
             } catch (ExpiredJwtException e) {
-                log.warn("Expired JWT for: {} {}", method, path);
-                return sendError(exchange,
+                log.warn("Expired JWT token for path: {}", path);
+                return sendErrorResponse(exchange,
                         HttpStatus.UNAUTHORIZED,
                         "Token has expired. Please login again.");
 
             } catch (MalformedJwtException | SecurityException e) {
-                log.warn("Invalid JWT for: {} {}", method, path);
-                return sendError(exchange,
+                log.warn("Invalid JWT token for path: {}", path);
+                return sendErrorResponse(exchange,
                         HttpStatus.UNAUTHORIZED,
                         "Invalid token.");
 
             } catch (Exception e) {
-                log.error("JWT error for {} {}: {}",
-                        method, path, e.getMessage());
-                return sendError(exchange,
+                log.error("JWT processing error: {}", e.getMessage());
+                return sendErrorResponse(exchange,
                         HttpStatus.UNAUTHORIZED,
                         "Token validation failed.");
             }
         };
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────
-
-    private boolean isPublicPath(String path, String method) {
-
-        // Check exact matches
-        if (PUBLIC_EXACT.contains(path)) {
-            return true;
-        }
-
-        // Check prefix matches
-        boolean prefixMatch = PUBLIC_PREFIXES.stream()
-                .anyMatch(path::startsWith);
-        if (prefixMatch) {
-            return true;
-        }
-
-        // Check regex patterns
-        boolean patternMatch = PUBLIC_PATTERNS.stream()
-                .anyMatch(p -> p.matcher(path).matches());
-        if (patternMatch) {
-            return true;
-        }
-
-        // GET /api/jobs — public job listing
-        if ("GET".equals(method) && "/api/jobs".equals(path)) {
-            return true;
-        }
-
-        return false;
-    }
-
-    private String buildFullName(String firstName, String lastName) {
-        if (firstName != null && lastName != null) {
-            return firstName + " " + lastName;
-        } else if (firstName != null) {
-            return firstName;
-        }
-        return "";
     }
 
     private Claims extractClaims(String token) {
@@ -245,38 +144,23 @@ public class JwtAuthFilter extends
                 jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    private Mono<Void> sendError(ServerWebExchange exchange,
-                                  HttpStatus status,
-                                  String message) {
+    private boolean isPublicPath(String path) {
+        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+    }
+
+    private Mono<Void> sendErrorResponse(ServerWebExchange exchange,
+                                          HttpStatus status,
+                                          String message) {
         ServerHttpResponse response = exchange.getResponse();
-
-        String origin = exchange.getRequest()
-                .getHeaders()
-                .getFirst(HttpHeaders.ORIGIN);
-
-        if (origin != null) {
-            response.getHeaders().set(
-                    HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
-                    origin);
-            response.getHeaders().set(
-                    HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS,
-                    "true");
-        }
-
         response.setStatusCode(status);
-        response.getHeaders()
-                .setContentType(MediaType.APPLICATION_JSON);
+        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
 
         String body = """
                 {
                   "status": %d,
-                  "message": "%s",
-                  "timestamp": "%s"
+                  "message": "%s"
                 }
-                """.formatted(
-                        status.value(),
-                        message,
-                        java.time.LocalDateTime.now());
+                """.formatted(status.value(), message);
 
         DataBuffer buffer = response.bufferFactory()
                 .wrap(body.getBytes(StandardCharsets.UTF_8));
@@ -284,5 +168,7 @@ public class JwtAuthFilter extends
         return response.writeWith(Mono.just(buffer));
     }
 
-    public static class Config {}
+    public static class Config {
+        // Leave empty — no custom config needed
+    }
 }

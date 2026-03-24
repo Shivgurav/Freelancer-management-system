@@ -11,7 +11,6 @@ import com.freelancer.job.enums.JobStatus;
 import com.freelancer.job.exception.JobException;
 import com.freelancer.job.exception.ResourceNotFoundException;
 import com.freelancer.job.repository.JobPostRepository;
-import com.freelancer.job.security.UserPrincipal;
 import com.freelancer.job.service.JobService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,16 +29,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class JobServiceImpl implements JobService {
 
-    private final JobPostRepository jobPostRepository;
+    private final JobPostRepository  jobPostRepository;
     private final NotificationClient notificationClient;
-    private final AuthClient authClient;
-    private final SearchClient searchClient;
+    private final AuthClient         authClient;
+    private final SearchClient       searchClient;
+
     @Override
     @Transactional
     public JobResponse createJob(UUID clientId, JobRequest request) {
-    	
 
-        // Convert skill list to comma-separated string
         String skillsStr = request.getRequiredSkills() != null
                 ? String.join(",", request.getRequiredSkills())
                 : "";
@@ -59,31 +57,24 @@ public class JobServiceImpl implements JobService {
 
         jobPostRepository.save(job);
         searchClient.syncJob(buildJobSyncData(job));
-        UserInfo clientInfo=authClient.getUserInfo(clientId);
-        
+
+        UserInfo clientInfo = authClient.getUserInfo(clientId);
+
+        // FIX: was sending notification TWICE — once via authClient and once via
+        // UserPrincipal.getCurrentUserEmail(). Removed the duplicate.
         notificationClient.send(
-        	    "JOB_POSTED",
-        	    clientInfo.getEmail(),     // you need to store or pass client email
-        	    clientInfo.getFullName(),
-        	    Map.of(
-        	        "jobTitle",   job.getTitle(),
-        	        "budgetMin",  job.getBudgetMin().toString(),
-        	        "budgetMax",  job.getBudgetMax().toString()
-        	    )
-        	);
+            "JOB_POSTED",
+            clientInfo.getEmail(),
+            clientInfo.getFullName(),
+            Map.of(
+                "jobTitle",  job.getTitle(),
+                "budgetMin", job.getBudgetMin().toString(),
+                "budgetMax", job.getBudgetMax().toString()
+            )
+        );
+
         log.info("Job created by clientId: {} — title: {}",
                 clientId, job.getTitle());
-        String email=UserPrincipal.getCurrentUserEmail();
-        notificationClient.send(
-        	    "JOB_POSTED",
-        	    email,     // you need to store or pass client email
-        	    "",
-        	    Map.of(
-        	        "jobTitle",   job.getTitle(),
-        	        "budgetMin",  job.getBudgetMin().toString(),
-        	        "budgetMax",  job.getBudgetMax().toString()
-        	    )
-        	);
         return mapToResponse(job);
     }
 
@@ -150,10 +141,6 @@ public class JobServiceImpl implements JobService {
         return mapToResponse(job);
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Private helpers
-    // ─────────────────────────────────────────────────────────────
-
     private JobPost findJobById(UUID jobId) {
         return jobPostRepository.findById(jobId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -161,7 +148,6 @@ public class JobServiceImpl implements JobService {
     }
 
     private JobResponse mapToResponse(JobPost job) {
-        // Convert comma-separated skills back to list
         List<String> skills = (job.getRequiredSkills() != null
                 && !job.getRequiredSkills().isEmpty())
                 ? Arrays.asList(job.getRequiredSkills().split(","))
@@ -184,6 +170,7 @@ public class JobServiceImpl implements JobService {
                 .updatedAt(job.getUpdatedAt())
                 .build();
     }
+
     private Map<String, Object> buildJobSyncData(JobPost job) {
         Map<String, Object> data = new HashMap<>();
         data.put("id",              job.getId().toString());

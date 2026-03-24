@@ -4,17 +4,12 @@ import com.freelancer.message.security.GatewayHeaderFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method
-        .configuration.EnableMethodSecurity;
-import org.springframework.security.config.annotation.web
-        .builders.HttpSecurity;
-import org.springframework.security.config.annotation.web
-        .configurers.AbstractHttpConfigurer;
-import org.springframework.security.config.http
-        .SessionCreationPolicy;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication
-        .UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -32,11 +27,15 @@ public class SecurityConfig {
                     SessionCreationPolicy.STATELESS))
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable)
+            // FIX: was addFilterBefore(UsernamePasswordAuthenticationFilter.class).
+            // Must be AnonymousAuthenticationFilter so the filter runs AFTER
+            // Spring's auth filters but BEFORE the anonymous principal is set.
+            // This ensures our X-User-Id auth token isn't overwritten.
             .addFilterBefore(gatewayHeaderFilter,
-                    UsernamePasswordAuthenticationFilter.class)
+                    AnonymousAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
-                // WebSocket endpoint — public
-                // Auth handled in WebSocket session
+                // WebSocket endpoint — auth is handled inside the WS session
+                // /api/messages/room — internal, called by contract-service
                 .requestMatchers(
                     "/ws/**",
                     "/api/messages/room",

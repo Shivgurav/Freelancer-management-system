@@ -13,7 +13,6 @@ import com.freelancer.contract.enums.ContractStatus;
 import com.freelancer.contract.exception.ContractException;
 import com.freelancer.contract.exception.ResourceNotFoundException;
 import com.freelancer.contract.repository.ContractRepository;
-import com.freelancer.contract.service.ContractService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,22 +30,16 @@ public class ContractServiceImpl implements ContractService {
 
     private final ContractRepository contractRepository;
     private final NotificationClient notificationClient;
-    private final AuthClient authClient;
-    private final JobClient jobClient;
+    private final AuthClient         authClient;
+    private final JobClient          jobClient;
 
-    // ── Create contract ───────────────────────────────────────────
-    // Called by Job Service when bid is accepted
     @Override
     @Transactional
     public ContractResponse createContract(ContractRequest request) {
 
-        // Check if contract already exists for this bid
-        // Prevents duplicate contracts
-        if (contractRepository.findByBidId(request.getBidId())
-                .isPresent()) {
+        if (contractRepository.findByBidId(request.getBidId()).isPresent()) {
             throw new ContractException(
-                    "Contract already exists for bid: "
-                    + request.getBidId());
+                    "Contract already exists for bid: " + request.getBidId());
         }
 
         Contract contract = Contract.builder()
@@ -60,46 +53,46 @@ public class ContractServiceImpl implements ContractService {
                 .terms(request.getTerms())
                 .status(ContractStatus.ACTIVE)
                 .build();
-       UserInfo clientInfo=authClient.getUserInfo(request.getClientId());
-       JobInfo jobInfo=jobClient.getJobInfo(request.getJobId());
-       UserInfo freelancerInfo=authClient.getUserInfo(request.getFreelancerId());
-       
-       
+
         contractRepository.save(contract);
+
+        UserInfo clientInfo     = authClient.getUserInfo(request.getClientId());
+        JobInfo  jobInfo        = jobClient.getJobInfo(request.getJobId());
+        UserInfo freelancerInfo = authClient.getUserInfo(request.getFreelancerId());
+
         notificationClient.send(
-        	    "CONTRACT_CREATED",
-        	    clientInfo.getEmail(),
-        	    clientInfo.getFullName(),
-        	    Map.of(
-        	    		"jobTitle",   jobInfo.getTitle()  ,
-        	        "agreedAmount", contract.getAgreedAmount().toString(),
-        	        "startDate",    contract.getStartDate().toString()
-        	    )
-        	);
+            "CONTRACT_CREATED",
+            clientInfo.getEmail(),
+            clientInfo.getFullName(),
+            Map.of(
+                "jobTitle",     jobInfo.getTitle(),
+                "agreedAmount", contract.getAgreedAmount().toString(),
+                "startDate",    contract.getStartDate() != null
+                                    ? contract.getStartDate().toString() : ""
+            )
+        );
         notificationClient.send(
-        	    "CONTRACT_CREATED",
-        	    freelancerInfo.getEmail(),
-        	    freelancerInfo.getFullName(),
-        	    Map.of(
-        	        "jobTitle",     jobInfo.getTitle(),
-        	        "agreedAmount", contract.getAgreedAmount().toString(),
-        	        "startDate",    contract.getStartDate().toString()
-        	    )
-        	);
+            "CONTRACT_CREATED",
+            freelancerInfo.getEmail(),
+            freelancerInfo.getFullName(),
+            Map.of(
+                "jobTitle",     jobInfo.getTitle(),
+                "agreedAmount", contract.getAgreedAmount().toString(),
+                "startDate",    contract.getStartDate() != null
+                                    ? contract.getStartDate().toString() : ""
+            )
+        );
+
         log.info("Contract created — jobId: {} bidId: {}",
                 request.getJobId(), request.getBidId());
-
         return mapToResponse(contract);
     }
 
-    // ── Get contract by ID ────────────────────────────────────────
-    // Used by Review Service to check contract status
     @Override
     public ContractResponse getContractById(UUID contractId) {
         return mapToResponse(findById(contractId));
     }
 
-    // ── Get contracts by client ───────────────────────────────────
     @Override
     public List<ContractResponse> getContractsByClient(UUID clientId) {
         return contractRepository
@@ -109,10 +102,8 @@ public class ContractServiceImpl implements ContractService {
                 .collect(Collectors.toList());
     }
 
-    // ── Get contracts by freelancer ───────────────────────────────
     @Override
-    public List<ContractResponse> getContractsByFreelancer(
-            UUID freelancerId) {
+    public List<ContractResponse> getContractsByFreelancer(UUID freelancerId) {
         return contractRepository
                 .findByFreelancerId(freelancerId)
                 .stream()
@@ -120,14 +111,11 @@ public class ContractServiceImpl implements ContractService {
                 .collect(Collectors.toList());
     }
 
-    // ── Cancel contract ───────────────────────────────────────────
     @Override
     @Transactional
-    public ContractResponse cancelContract(UUID contractId,
-                                            UUID userId) {
+    public ContractResponse cancelContract(UUID contractId, UUID userId) {
         Contract contract = findById(contractId);
 
-        // Only client or freelancer on this contract can cancel
         boolean isParty = contract.getClientId().equals(userId)
                 || contract.getFreelancerId().equals(userId);
 
@@ -135,10 +123,8 @@ public class ContractServiceImpl implements ContractService {
             throw new ContractException(
                     "You are not authorized to cancel this contract");
         }
-
         if (contract.getStatus() == ContractStatus.COMPLETED) {
-            throw new ContractException(
-                    "Cannot cancel a completed contract");
+            throw new ContractException("Cannot cancel a completed contract");
         }
 
         contract.setStatus(ContractStatus.CANCELLED);
@@ -147,44 +133,43 @@ public class ContractServiceImpl implements ContractService {
         return mapToResponse(contract);
     }
 
-    // ── Complete contract ─────────────────────────────────────────
-    // Called internally when all milestones are APPROVED
     @Override
     @Transactional
     public ContractResponse completeContract(UUID contractId) {
         Contract contract = findById(contractId);
         contract.setStatus(ContractStatus.COMPLETED);
         contractRepository.save(contract);
-        UserInfo clientInfo=authClient.getUserInfo(contract.getClientId());
-        JobInfo jobInfo=jobClient.getJobInfo(contract.getJobId());
-        UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
-        
-         notificationClient.send(
-        	    "CONTRACT_CREATED",
-        	    clientInfo.getEmail(),
-        	    clientInfo.getFullName(),
-        	    Map.of(
-        	    		"jobTitle",   jobInfo.getTitle()  ,
-        	        "agreedAmount", contract.getAgreedAmount().toString(),
-        	        "startDate",    contract.getStartDate().toString()
-        	    )
-        	);
+
+        UserInfo clientInfo     = authClient.getUserInfo(contract.getClientId());
+        JobInfo  jobInfo        = jobClient.getJobInfo(contract.getJobId());
+        UserInfo freelancerInfo = authClient.getUserInfo(contract.getFreelancerId());
+
+        // FIX: was sending "CONTRACT_CREATED" event on contract completion — wrong.
+        // Corrected to "CONTRACT_COMPLETED" so the right email template is used.
         notificationClient.send(
-        	    "CONTRACT_CREATED",
-        	    freelancerInfo.getEmail(),
-        	    freelancerInfo.getFullName(),
-        	    Map.of(
-        	        "jobTitle",     jobInfo.getTitle(),
-        	        "agreedAmount", contract.getAgreedAmount().toString(),
-        	        "startDate",    contract.getStartDate().toString()
-        	    )
-        	);
+            "CONTRACT_COMPLETED",
+            clientInfo.getEmail(),
+            clientInfo.getFullName(),
+            Map.of(
+                "jobTitle",    jobInfo.getTitle(),
+                "totalAmount", contract.getAgreedAmount().toString(),
+                "contractId",  contract.getId().toString()
+            )
+        );
+        notificationClient.send(
+            "CONTRACT_COMPLETED",
+            freelancerInfo.getEmail(),
+            freelancerInfo.getFullName(),
+            Map.of(
+                "jobTitle",    jobInfo.getTitle(),
+                "totalAmount", contract.getAgreedAmount().toString(),
+                "contractId",  contract.getId().toString()
+            )
+        );
+
         log.info("Contract COMPLETED — contractId: {}", contractId);
         return mapToResponse(contract);
-        
     }
-
-    // ── Private helpers ───────────────────────────────────────────
 
     private Contract findById(UUID contractId) {
         return contractRepository.findById(contractId)

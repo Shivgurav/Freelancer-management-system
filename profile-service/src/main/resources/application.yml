@@ -23,15 +23,17 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+# FIX: eureka block had broken 1-space indentation — Spring Boot could not parse it.
+# profile-service was never registering with Eureka, so gateway could never find it.
 eureka:
- client:
-  enabled: true                    # was false — now enable
-  service-url:
-   defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
-  registry-fetch-interval-seconds: 5
- instance:
-  prefer-ip-address: true
-  instance-id: ${spring.application.name}:${server.port}
+  client:
+    enabled: true
+    service-url:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
 
 services:
   notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}

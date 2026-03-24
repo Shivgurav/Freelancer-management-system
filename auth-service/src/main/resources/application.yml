@@ -24,15 +24,19 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
+# CRITICAL FIX: Original file had 1-space indent on eureka block.
+# Spring Boot YAML parser requires consistent 2-space indent.
+# With wrong indent, eureka config is silently ignored and
+# auth-service never registers with Eureka — gateway can't find it.
 eureka:
- client:
-  enabled: true                    # was false — now enable
-  service-url:
-    defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
-  registry-fetch-interval-seconds: 5
- instance:
-  prefer-ip-address: true
-  instance-id: ${spring.application.name}:${server.port}
+  client:
+    enabled: true
+    service-url:
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
+    registry-fetch-interval-seconds: 5
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
 
 jwt:
   secret: ${JWT_SECRET:freelancer_platform_super_secret_key_256bits_change_in_prod}
@@ -46,7 +50,7 @@ management:
         include: health,info
 
 services:
-  job: ${JOB_SERIVE_URL:http://job-service}         
+  job: ${JOB_SERVICE_URL:http://job-service}
   profile: ${PROFILE_SERVICE_URL:http://profile-service}
   notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
 

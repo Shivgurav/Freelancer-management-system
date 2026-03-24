@@ -7,10 +7,12 @@ spring:
     name: api-gateway
   cloud:
     gateway:
-      globalcors:
-        add-to-simple-url-handler-mapping: true
+      # CRITICAL FIX: Remove globalcors entirely.
+      # We handle CORS in CorsConfig.java via CorsWebFilter bean.
+      # Having BOTH globalcors config AND a CorsWebFilter bean causes
+      # duplicate/conflicting CORS headers which breaks browsers.
       default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin RETAIN_UNIQUE
       routes:
 
         # ── Auth Service ──────────────────────────────────────────
@@ -66,14 +68,6 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── File Service ──────────────────────────────────────────
-#        - id: file-service
-#          uri: lb://file-service
-#          predicates:
-#            - Path=/api/files/**
-#          filters:
-#            - JwtAuthFilter
-
         # ── Review Service ────────────────────────────────────────
         - id: review-service
           uri: lb://review-service
@@ -90,7 +84,7 @@ spring:
           filters:
             - JwtAuthFilter
 
-#         ── Search Service ────────────────────────────────────────
+        # ── Search Service ────────────────────────────────────────
         - id: search-service
           uri: lb://search-service
           predicates:
@@ -98,21 +92,15 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── Analytics Service ─────────────────────────────────────
-#        - id: analytics-service
-#          uri: lb://analytics-service
-#          predicates:
-#            - Path=/api/analytics/**
-#          filters:
-#            - JwtAuthFilter
-
-
-       #-----routes for websocket of messaging system
+        # ── Message Service WebSocket ─────────────────────────────
         - id: message-service-websocket
           uri: lb:ws://message-service
           predicates:
             - Path=/ws/**
-       #----routes for rest messaging
+          filters:
+            - JwtAuthFilter
+
+        # ── Message Service REST ──────────────────────────────────
         - id: message-service-rest
           uri: lb://message-service
           predicates:
@@ -120,34 +108,22 @@ spring:
           filters:
             - JwtAuthFilter
 
-     
 # ── Eureka ─────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
-    # How often to fetch registry from Eureka
     registry-fetch-interval-seconds: 5
-    # If Eureka is down — do not crash, keep retrying
     enabled: true
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
-    # How long before Eureka removes this instance if no heartbeat
     lease-expiration-duration-in-seconds: 30
-    # How often to send heartbeat to Eureka
     lease-renewal-interval-in-seconds: 10
 
 # ── JWT ────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET:freelancer_platform_super_secret_key_256bits_change_in_prod}
-
-# ── CORS ───────────────────────────────────────────────────────────
-app:
-  env: ${APP_ENV:dev}
-
-cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
 # ── Actuator ───────────────────────────────────────────────────────
 management:

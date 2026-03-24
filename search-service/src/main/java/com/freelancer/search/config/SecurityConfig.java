@@ -9,7 +9,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 
 @Configuration
 @EnableMethodSecurity
@@ -25,12 +25,14 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(s -> s
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            // FIX: was addFilterBefore(UsernamePasswordAuthenticationFilter.class).
+            // Must be AnonymousAuthenticationFilter — same reason as message-service.
             .addFilterBefore(gatewayHeaderFilter,
-                    UsernamePasswordAuthenticationFilter.class)
+                    AnonymousAuthenticationFilter.class)
             .authorizeHttpRequests(auth -> auth
-                // All search and sync endpoints are public
-                // Search is public for anyone to browse
-                // Sync is internal service-to-service
+                // All search and sync endpoints are public.
+                // Search is public for anyone to browse.
+                // Sync endpoints are called by other services internally.
                 .requestMatchers(
                     "/api/search/**",
                     "/actuator/**"

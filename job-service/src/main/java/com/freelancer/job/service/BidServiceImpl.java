@@ -14,7 +14,6 @@ import com.freelancer.job.exception.JobException;
 import com.freelancer.job.exception.ResourceNotFoundException;
 import com.freelancer.job.repository.BidRepository;
 import com.freelancer.job.repository.JobPostRepository;
-import com.freelancer.job.security.UserPrincipal;
 import com.freelancer.job.service.BidService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,23 +31,16 @@ import java.util.stream.Collectors;
 @Service
 public class BidServiceImpl implements BidService {
 
-    private final BidRepository     bidRepository;
-    private final JobPostRepository jobPostRepository;
-    private final WebClient.Builder webClientBuilder;
+    private final BidRepository      bidRepository;
+    private final JobPostRepository  jobPostRepository;
+    private final WebClient.Builder  webClientBuilder;
     private final NotificationClient notificationClient;
-    private final AuthClient authClient;
-    private final SearchClient searchClient;
+    private final AuthClient         authClient;
+    private final SearchClient       searchClient;
 
-    // Read service URLs from application.yml
-    // Uses Eureka service name — NOT localhost
     @Value("${services.contract}")
     private String contractServiceUrl;
 
-    @Value("${services.notification}")
-    private String notificationServiceUrl;
-
-    // Constructor injection — note WebClient.Builder not WebClient
-    // Because @LoadBalanced only works on WebClient.Builder bean
     public BidServiceImpl(
             BidRepository bidRepository,
             JobPostRepository jobPostRepository,
@@ -56,12 +48,12 @@ public class BidServiceImpl implements BidService {
             NotificationClient notificationClient,
             AuthClient authClient,
             SearchClient searchClient) {
-        this.bidRepository     = bidRepository;
-        this.jobPostRepository = jobPostRepository;
-        this.webClientBuilder  = webClientBuilder;
-        this.notificationClient=notificationClient;
-        this.authClient=authClient;
-        this.searchClient=searchClient;	
+        this.bidRepository      = bidRepository;
+        this.jobPostRepository  = jobPostRepository;
+        this.webClientBuilder   = webClientBuilder;
+        this.notificationClient = notificationClient;
+        this.authClient         = authClient;
+        this.searchClient       = searchClient;
     }
 
     @Override
@@ -73,16 +65,13 @@ public class BidServiceImpl implements BidService {
         JobPost job = findJobById(jobId);
 
         if (job.getStatus() != JobStatus.OPEN) {
-            throw new JobException(
-                    "This job is no longer accepting bids");
+            throw new JobException("This job is no longer accepting bids");
         }
         if (job.getClientId().equals(freelancerId)) {
             throw new JobException("You cannot bid on your own job");
         }
-        if (bidRepository.existsByJobPostAndFreelancerId(
-                job, freelancerId)) {
-            throw new JobException(
-                    "You have already placed a bid on this job");
+        if (bidRepository.existsByJobPostAndFreelancerId(job, freelancerId)) {
+            throw new JobException("You have already placed a bid on this job");
         }
 
         Bid bid = Bid.builder()
@@ -93,24 +82,24 @@ public class BidServiceImpl implements BidService {
                 .estimatedDays(request.getEstimatedDays())
                 .status(BidStatus.PENDING)
                 .build();
-        UserInfo clientInfo=authClient.getUserInfo(clientId);
-        UserInfo freelancerInfo=authClient.getUserInfo(freelancerId);
-        
+
         bidRepository.save(bid);
+
+        UserInfo clientInfo     = authClient.getUserInfo(clientId);
+        UserInfo freelancerInfo = authClient.getUserInfo(freelancerId);
+
         notificationClient.send(
-        	    "BID_RECEIVED",
-        	    clientInfo.getEmail(),
-        	    clientInfo.getFullName(),
-        	    Map.of(
-        	        "jobTitle",       job.getTitle(),
-        	        "freelancerName", freelancerInfo.getFullName(),
-        	        "bidAmount",      bid.getBidAmount().toString(),
-        	        "estimatedDays",  bid.getEstimatedDays().toString(),
-        	        "jobId",          job.getId().toString()
-        	    )
-        	);
-       
-        
+            "BID_RECEIVED",
+            clientInfo.getEmail(),
+            clientInfo.getFullName(),
+            Map.of(
+                "jobTitle",       job.getTitle(),
+                "freelancerName", freelancerInfo.getFullName(),
+                "bidAmount",      bid.getBidAmount().toString(),
+                "estimatedDays",  bid.getEstimatedDays().toString(),
+                "jobId",          job.getId().toString()
+            )
+        );
 
         job.setTotalBids(job.getTotalBids() + 1);
         jobPostRepository.save(job);
@@ -144,7 +133,7 @@ public class BidServiceImpl implements BidService {
     @Override
     @Transactional
     public BidResponse acceptBid(UUID bidId, UUID clientId) {
-        Bid bid     = findBidById(bidId);
+        Bid     bid = findBidById(bidId);
         JobPost job = bid.getJobPost();
 
         if (!job.getClientId().equals(clientId)) {
@@ -157,39 +146,33 @@ public class BidServiceImpl implements BidService {
         if (job.getStatus() != JobStatus.OPEN) {
             throw new JobException("This job is no longer open");
         }
-        
-        UserInfo clientInfo=authClient.getUserInfo(clientId);
-        UserInfo freelancerInfo=authClient.getUserInfo(bid.getFreelancerId());
-        
-      
-        // Accept this bid
+
+        UserInfo clientInfo     = authClient.getUserInfo(clientId);
+        UserInfo freelancerInfo = authClient.getUserInfo(bid.getFreelancerId());
+
         bid.setStatus(BidStatus.ACCEPTED);
         bidRepository.save(bid);
-        notificationClient.send(
-        	    "BID_ACCEPTED",
-        	    freelancerInfo.getEmail(),
-        	    freelancerInfo.getFullName(),
-        	    Map.of(
-        	        "jobTitle",     job.getTitle(),
-        	        "clientName",   clientInfo.getFullName(),
-        	        "agreedAmount", bid.getBidAmount().toString()
-        	    )
-        	);
 
-        // Reject all other bids
+        notificationClient.send(
+            "BID_ACCEPTED",
+            freelancerInfo.getEmail(),
+            freelancerInfo.getFullName(),
+            Map.of(
+                "jobTitle",     job.getTitle(),
+                "clientName",   clientInfo.getFullName(),
+                "agreedAmount", bid.getBidAmount().toString()
+            )
+        );
+
         bidRepository.rejectAllOtherBids(job, bidId);
 
-        // Close the job
         job.setStatus(JobStatus.CLOSED);
         jobPostRepository.save(job);
         searchClient.updateJobStatus(job.getId(), "CLOSED");
-       
 
-        // Auto-create contract in Contract Service
-        createContractFromBid(bid, job);
+        createContractFromBid(bid, job, clientId);
 
-        log.info("Bid accepted — bidId: {} jobId: {}",
-                bidId, job.getId());
+        log.info("Bid accepted — bidId: {} jobId: {}", bidId, job.getId());
         return mapToResponse(bid);
     }
 
@@ -218,12 +201,10 @@ public class BidServiceImpl implements BidService {
                     "You are not authorized to withdraw this bid");
         }
         if (bid.getStatus() != BidStatus.PENDING) {
-            throw new JobException(
-                    "Only PENDING bids can be withdrawn");
+            throw new JobException("Only PENDING bids can be withdrawn");
         }
         bid.setStatus(BidStatus.WITHDRAWN);
         bidRepository.save(bid);
-      
 
         JobPost job = bid.getJobPost();
         job.setTotalBids(Math.max(0, job.getTotalBids() - 1));
@@ -236,20 +217,24 @@ public class BidServiceImpl implements BidService {
     // Private helpers
     // ─────────────────────────────────────────────────────────────
 
-    private void createContractFromBid(Bid bid, JobPost job) {
+    private void createContractFromBid(Bid bid, JobPost job, UUID clientId) {
         try {
             Map<String, Object> body = new HashMap<>();
-            body.put("jobId",       job.getId());
-            body.put("bidId",       bid.getId());
-            body.put("clientId",    job.getClientId());
-            body.put("freelancerId",bid.getFreelancerId());
-            body.put("agreedAmount",bid.getBidAmount());
+            body.put("jobId",        job.getId());
+            body.put("bidId",        bid.getId());
+            body.put("clientId",     job.getClientId());
+            body.put("freelancerId", bid.getFreelancerId());
+            body.put("agreedAmount", bid.getBidAmount());
 
-            // Uses Eureka service name — resolves dynamically
-            // Works locally, in Docker, and in production
+            // FIX: contract-service's GatewayHeaderFilter requires X-User-Id and X-User-Role
+            // headers to authenticate the request. Without these the SecurityContext is empty
+            // and .anyRequest().authenticated() returns 403 — this was the root cause of
+            // "access denied" when client submits/accepts project.
             webClientBuilder.build()
                     .post()
                     .uri(contractServiceUrl + "/api/contracts")
+                    .header("X-User-Id",   clientId.toString())
+                    .header("X-User-Role", "CLIENT")
                     .bodyValue(body)
                     .retrieve()
                     .bodyToMono(Map.class)
@@ -258,8 +243,6 @@ public class BidServiceImpl implements BidService {
             log.info("Contract created for bidId: {}", bid.getId());
 
         } catch (Exception e) {
-            // Log but don't fail bid acceptance
-            // Contract can be created manually if needed
             log.error("Failed to create contract for bidId: {} — {}",
                     bid.getId(), e.getMessage());
         }

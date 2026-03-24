@@ -1,56 +1,35 @@
 package com.freelancer.gateway.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
-import java.util.Arrays;
 import java.util.List;
 
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.env:dev}")
-    private String appEnv;
-
-    // Production frontend URL — set via environment variable
-    @Value("${cors.allowed-origins:http://localhost:3000}")
-    private String allowedOriginsStr;
-
     @Bean
     public CorsWebFilter corsWebFilter() {
         CorsConfiguration config = new CorsConfiguration();
 
-        if ("dev".equals(appEnv)) {
-            config.addAllowedOriginPattern("*");
-        } else {
-            config.setAllowedOrigins(
-                Arrays.asList(allowedOriginsStr.split(",")));
-        }
+        // CRITICAL FIX: Never use wildcard "*" with allowCredentials(true).
+        // Browsers hard-block this combination per the CORS spec.
+        // Always list origins explicitly — works for both dev and prod.
+        config.setAllowedOrigins(List.of(
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://localhost:5000"
+        ));
 
         config.setAllowedMethods(List.of(
-            "GET", "POST", "PUT", "DELETE",
-            "PATCH", "OPTIONS",
-            "HEAD"     // ← needed for WebSocket upgrade
+            "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"
         ));
 
-        config.setAllowedHeaders(List.of(
-            "Authorization",
-            "Content-Type",
-            "X-User-Id",
-            "X-User-Role",
-            "X-User-Email",
-            "X-User-FirstName",
-            "X-User-LastName",
-            "X-User-FullName",
-            "Upgrade",           // ← needed for WebSocket
-            "Connection",        // ← needed for WebSocket
-            "Sec-WebSocket-Key", // ← needed for WebSocket
-            "Sec-WebSocket-Version" // ← needed for WebSocket
-        ));
+        // Allow all headers — simplest and safest for internal microservices
+        config.addAllowedHeader("*");
 
         config.setAllowCredentials(true);
         config.setMaxAge(3600L);
