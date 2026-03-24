@@ -1,4 +1,5 @@
 package com.freelancer.profile.config;
+// Change package per service
 
 import com.freelancer.profile.security.GatewayHeaderFilter;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
-@EnableMethodSecurity
+@EnableMethodSecurity          // enables @PreAuthorize
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -23,19 +24,35 @@ public class SecurityConfig {
             throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
+
+            // Disable session — stateless REST API
             .sessionManagement(s -> s
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+            // Disable default Spring Security form login
+            .formLogin(AbstractHttpConfigurer::disable)
+            .httpBasic(AbstractHttpConfigurer::disable)
+
+            // Add our filter BEFORE Spring Security's auth filter
+            // This ensures security context is set BEFORE
+            // Spring Security checks permissions
             .addFilterBefore(gatewayHeaderFilter,
                     UsernamePasswordAuthenticationFilter.class)
+
             .authorizeHttpRequests(auth -> auth
+                // Public endpoints — no auth needed
                 .requestMatchers(
-                    "/api/profiles/freelancer/{profileId}",
-                    "/api/profiles/client/{profileId}",
+                    "/api/profiles/freelancer/**",
+                    "/api/profiles/client/**",
                     "/api/profiles/skills/**",
+                    "/api/profiles/*/init",
                     "/actuator/**"
                 ).permitAll()
+
+                // Everything else needs authentication
                 .anyRequest().authenticated()
             );
+
         return http.build();
     }
 }

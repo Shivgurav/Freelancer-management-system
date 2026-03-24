@@ -1,5 +1,6 @@
 package com.freelancer.profile.security;
 
+
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,43 +25,47 @@ public class GatewayHeaderFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        // Read headers — Spring normalizes header names to lowercase
+        // so X-User-Id and x-user-id both work
         String userId    = request.getHeader("X-User-Id");
         String role      = request.getHeader("X-User-Role");
         String email     = request.getHeader("X-User-Email");
         String firstName = request.getHeader("X-User-FirstName");
         String lastName  = request.getHeader("X-User-LastName");
 
+        log.debug("GatewayHeaderFilter — path: {} userId: {} role: {}",
+                request.getRequestURI(), userId, role);
+
         if (userId != null && role != null) {
+
+            // Spring Security needs "ROLE_" prefix
             List<SimpleGrantedAuthority> authorities = List.of(
                     new SimpleGrantedAuthority("ROLE_" + role));
 
-            // Build full name from headers
             String fullName = "";
             if (firstName != null && lastName != null) {
                 fullName = firstName + " " + lastName;
-            } else if (firstName != null) {
-                fullName = firstName;
             }
 
-            // We store extra info in a custom auth token
-            // principal   = userId
-            // credentials = email
-            // details     = fullName  ← store name here
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
-                            userId,    // principal
-                            email,     // credentials
-                            authorities);
+                            userId,      // principal
+                            email,       // credentials
+                            authorities  // roles
+                    );
 
-            // Store fullName in details
             auth.setDetails(fullName);
 
+            // Set into security context BEFORE the filter chain continues
             SecurityContextHolder.getContext()
                     .setAuthentication(auth);
 
-            log.debug("Security context set — " +
-                      "userId: {} role: {} name: {}",
-                    userId, role, fullName);
+            log.debug("Security context set — userId: {} role: {}",
+                    userId, role);
+
+        } else {
+            log.warn("No X-User-Id or X-User-Role header found " +
+                     "for path: {}", request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);

@@ -3,6 +3,7 @@ package com.freelancer.job.service;
 import com.freelancer.job.client.AuthClient;
 import com.freelancer.job.client.AuthClient.UserInfo;
 import com.freelancer.job.client.NotificationClient;
+import com.freelancer.job.client.SearchClient;
 import com.freelancer.job.dto.request.JobRequest;
 import com.freelancer.job.dto.response.JobResponse;
 import com.freelancer.job.entity.JobPost;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -31,7 +33,7 @@ public class JobServiceImpl implements JobService {
     private final JobPostRepository jobPostRepository;
     private final NotificationClient notificationClient;
     private final AuthClient authClient;
-
+    private final SearchClient searchClient;
     @Override
     @Transactional
     public JobResponse createJob(UUID clientId, JobRequest request) {
@@ -56,6 +58,7 @@ public class JobServiceImpl implements JobService {
                 .build();
 
         jobPostRepository.save(job);
+        searchClient.syncJob(buildJobSyncData(job));
         UserInfo clientInfo=authClient.getUserInfo(clientId);
         
         notificationClient.send(
@@ -142,6 +145,7 @@ public class JobServiceImpl implements JobService {
 
         job.setStatus(JobStatus.CANCELLED);
         jobPostRepository.save(job);
+        searchClient.updateJobStatus(job.getId(), "CANCELLED");
         log.info("Job cancelled — jobId: {}", jobId);
         return mapToResponse(job);
     }
@@ -179,5 +183,21 @@ public class JobServiceImpl implements JobService {
                 .createdAt(job.getCreatedAt())
                 .updatedAt(job.getUpdatedAt())
                 .build();
+    }
+    private Map<String, Object> buildJobSyncData(JobPost job) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id",              job.getId().toString());
+        data.put("clientId",        job.getClientId().toString());
+        data.put("title",           job.getTitle());
+        data.put("description",     job.getDescription());
+        data.put("budgetMin",       job.getBudgetMin());
+        data.put("budgetMax",       job.getBudgetMax());
+        data.put("status",          job.getStatus().name());
+        data.put("experienceLevel", job.getExperienceLevel());
+        data.put("durationDays",    job.getDurationDays());
+        data.put("requiredSkills",
+                 Arrays.asList(job.getRequiredSkills().split(",")));
+        data.put("createdAt",       job.getCreatedAt().toString());
+        return data;
     }
 }

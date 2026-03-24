@@ -25,28 +25,32 @@
   <dependencies>
 
     <!--
-      IMPORTANT: API Gateway uses Spring WebFlux (reactive),
-      NOT Spring Web (servlet).
-      Never add spring-boot-starter-web here — it will conflict.
+      IMPORTANT — Gateway uses WebFlux (reactive).
+      NEVER add spring-boot-starter-web here.
+      It will conflict with the gateway.
     -->
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-gateway</artifactId>
     </dependency>
-
-    <!-- Eureka client — for service discovery -->
+    <!-- Required for WebSocket proxying in Gateway -->
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-webflux</artifactId>
+</dependency>
+    <!-- Eureka client -->
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
     </dependency>
 
-    <!-- Load balancer — needed for lb:// routing -->
+    <!-- Load balancer — needed for lb:// routing to work -->
     <dependency>
       <groupId>org.springframework.cloud</groupId>
       <artifactId>spring-cloud-starter-loadbalancer</artifactId>
     </dependency>
 
-    <!-- JWT — for validating tokens at the gateway -->
+    <!-- JWT validation -->
     <dependency>
       <groupId>io.jsonwebtoken</groupId>
       <artifactId>jjwt-api</artifactId>
@@ -65,7 +69,7 @@
       <scope>runtime</scope>
     </dependency>
 
-    <!-- Actuator -->
+    <!-- Actuator for health checks -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>

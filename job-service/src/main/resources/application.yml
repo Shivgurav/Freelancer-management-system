@@ -37,6 +37,7 @@ services:
   contract: ${CONTRACT_SERVICE_URL:http://contract-service}
   notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
   auth: ${AUTH_SERVICE_URL:http://auth-service}
+  search: ${SEARCH_SERVICE_URL:http://search-service}
 
 # Notification service URL — used for sending emails
 

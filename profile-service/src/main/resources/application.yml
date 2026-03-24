@@ -35,6 +35,7 @@ eureka:
 
 services:
   notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
+  search: ${SEARCH_SERVICE_URL:http://search-service}
 
 management:
   endpoints:

@@ -5,33 +5,23 @@ server:
 spring:
   application:
     name: api-gateway
-
   cloud:
     gateway:
-      # Global CORS — handled by CorsFilter.java
       globalcors:
         add-to-simple-url-handler-mapping: true
-
-      # Default filters applied to ALL routes
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin
-
       routes:
 
-        # ── Auth Service ────────────────────────────────────────────
+        # ── Auth Service ──────────────────────────────────────────
         - id: auth-service
           uri: lb://auth-service
           predicates:
             - Path=/api/auth/**
           filters:
             - JwtAuthFilter
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
 
-        # ── Profile Service ─────────────────────────────────────────
+        # ── Profile Service ───────────────────────────────────────
         - id: profile-service
           uri: lb://profile-service
           predicates:
@@ -39,7 +29,7 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── Job Service ─────────────────────────────────────────────
+        # ── Job Service ───────────────────────────────────────────
         - id: job-service-jobs
           uri: lb://job-service
           predicates:
@@ -54,7 +44,7 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── Contract Service ────────────────────────────────────────
+        # ── Contract Service ──────────────────────────────────────
         - id: contract-service-contracts
           uri: lb://contract-service
           predicates:
@@ -76,7 +66,7 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── File Service ────────────────────────────────────────────
+        # ── File Service ──────────────────────────────────────────
 #        - id: file-service
 #          uri: lb://file-service
 #          predicates:
@@ -84,7 +74,7 @@ spring:
 #          filters:
 #            - JwtAuthFilter
 
-        # ── Review Service ──────────────────────────────────────────
+        # ── Review Service ────────────────────────────────────────
         - id: review-service
           uri: lb://review-service
           predicates:
@@ -92,7 +82,7 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── Notification Service ────────────────────────────────────
+        # ── Notification Service ──────────────────────────────────
         - id: notification-service
           uri: lb://notification-service
           predicates:
@@ -100,15 +90,15 @@ spring:
           filters:
             - JwtAuthFilter
 
-        # ── Search Service ──────────────────────────────────────────
-#        - id: search-service
-#          uri: lb://search-service
-#          predicates:
-#            - Path=/api/search/**
-#          filters:
-#            - JwtAuthFilter
+#         ── Search Service ────────────────────────────────────────
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/api/search/**
+          filters:
+            - JwtAuthFilter
 
-        # ── Analytics Service ───────────────────────────────────────
+        # ── Analytics Service ─────────────────────────────────────
 #        - id: analytics-service
 #          uri: lb://analytics-service
 #          predicates:
@@ -116,38 +106,61 @@ spring:
 #          filters:
 #            - JwtAuthFilter
 
-# Eureka
+
+       #-----routes for websocket of messaging system
+        - id: message-service-websocket
+          uri: lb:ws://message-service
+          predicates:
+            - Path=/ws/**
+       #----routes for rest messaging
+        - id: message-service-rest
+          uri: lb://message-service
+          predicates:
+            - Path=/api/messages/**
+          filters:
+            - JwtAuthFilter
+
+     
+# ── Eureka ─────────────────────────────────────────────────────────
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
+    # How often to fetch registry from Eureka
     registry-fetch-interval-seconds: 5
+    # If Eureka is down — do not crash, keep retrying
+    enabled: true
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
+    # How long before Eureka removes this instance if no heartbeat
+    lease-expiration-duration-in-seconds: 30
+    # How often to send heartbeat to Eureka
+    lease-renewal-interval-in-seconds: 10
 
-# JWT
+# ── JWT ────────────────────────────────────────────────────────────
 jwt:
   secret: ${JWT_SECRET:freelancer_platform_super_secret_key_256bits_change_in_prod}
 
-# CORS
+# ── CORS ───────────────────────────────────────────────────────────
 app:
   env: ${APP_ENV:dev}
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
 
-# Actuator
+# ── Actuator ───────────────────────────────────────────────────────
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,gateway,metrics
+        include: health,info,gateway
   endpoint:
     health:
       show-details: always
 
+# ── Logging ────────────────────────────────────────────────────────
 logging:
   level:
     com.freelancer.gateway: DEBUG
     org.springframework.cloud.gateway: INFO
-    org.springframework.cloud.gateway.filter: DEBUG

@@ -20,14 +20,15 @@ public class SecurityConfig {
             .sessionManagement(s -> s
                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers(
-                    "/api/auth/register",
-                    "/api/auth/login",
-                    "/api/auth/refresh",
-                    "/actuator/**"
-                ).permitAll()
-                .anyRequest().authenticated()
-            );
+            	    .requestMatchers(
+            	        "/api/auth/register",
+            	        "/api/auth/login",
+            	        "/api/auth/refresh",
+            	        "/api/auth/user/**",    // internal — other services call this
+            	        "/actuator/**"
+            	    ).permitAll()
+            	    .anyRequest().authenticated()
+            	);
         return http.build();
     }
 

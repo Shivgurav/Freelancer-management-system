@@ -3,6 +3,7 @@ package com.freelancer.job.service;
 import com.freelancer.job.client.AuthClient;
 import com.freelancer.job.client.AuthClient.UserInfo;
 import com.freelancer.job.client.NotificationClient;
+import com.freelancer.job.client.SearchClient;
 import com.freelancer.job.dto.request.BidRequest;
 import com.freelancer.job.dto.response.BidResponse;
 import com.freelancer.job.entity.Bid;
@@ -36,6 +37,7 @@ public class BidServiceImpl implements BidService {
     private final WebClient.Builder webClientBuilder;
     private final NotificationClient notificationClient;
     private final AuthClient authClient;
+    private final SearchClient searchClient;
 
     // Read service URLs from application.yml
     // Uses Eureka service name — NOT localhost
@@ -52,12 +54,14 @@ public class BidServiceImpl implements BidService {
             JobPostRepository jobPostRepository,
             WebClient.Builder webClientBuilder,
             NotificationClient notificationClient,
-            AuthClient authClient) {
+            AuthClient authClient,
+            SearchClient searchClient) {
         this.bidRepository     = bidRepository;
         this.jobPostRepository = jobPostRepository;
         this.webClientBuilder  = webClientBuilder;
         this.notificationClient=notificationClient;
         this.authClient=authClient;
+        this.searchClient=searchClient;	
     }
 
     @Override
@@ -155,14 +159,16 @@ public class BidServiceImpl implements BidService {
         }
         
         UserInfo clientInfo=authClient.getUserInfo(clientId);
+        UserInfo freelancerInfo=authClient.getUserInfo(bid.getFreelancerId());
+        
       
         // Accept this bid
         bid.setStatus(BidStatus.ACCEPTED);
         bidRepository.save(bid);
         notificationClient.send(
         	    "BID_ACCEPTED",
-        	    UserPrincipal.getCurrentUserEmail(),
-        	    UserPrincipal.getCurrentUserName(),
+        	    freelancerInfo.getEmail(),
+        	    freelancerInfo.getFullName(),
         	    Map.of(
         	        "jobTitle",     job.getTitle(),
         	        "clientName",   clientInfo.getFullName(),
@@ -176,6 +182,7 @@ public class BidServiceImpl implements BidService {
         // Close the job
         job.setStatus(JobStatus.CLOSED);
         jobPostRepository.save(job);
+        searchClient.updateJobStatus(job.getId(), "CLOSED");
        
 
         // Auto-create contract in Contract Service

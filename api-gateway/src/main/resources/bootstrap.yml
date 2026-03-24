@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    # Tell Spring to NOT fail startup if config server
+    # or Eureka is not available
+    config:
+      enabled: false
+      fail-fast: false

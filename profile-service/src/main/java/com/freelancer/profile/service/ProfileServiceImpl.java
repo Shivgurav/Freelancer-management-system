@@ -1,6 +1,7 @@
 package com.freelancer.profile.service;
 
 import com.freelancer.profile.client.NotificationClient;
+import com.freelancer.profile.client.SearchClient;
 import com.freelancer.profile.dto.request.ClientProfileRequest;
 import com.freelancer.profile.dto.request.ProfileRequest;
 import com.freelancer.profile.dto.request.SkillRequest;
@@ -26,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class ProfileServiceImpl implements ProfileService {
     private final SkillRepository             skillRepository;
     private final FreelancerSkillRepository   freelancerSkillRepository;
     private final NotificationClient notificationClient;
+    private final SearchClient searchClient;
 
     // ══════════════════════════════════════════════════════════════
     // FREELANCER
@@ -71,6 +74,7 @@ public class ProfileServiceImpl implements ProfileService {
                 .build();
 
         profile = freelancerProfileRepository.save(profile);
+        searchClient.syncFreelancerProfile(buildSyncData(profile));
     
 
         if (request.getSkills() != null) {
@@ -84,7 +88,28 @@ public class ProfileServiceImpl implements ProfileService {
                 freelancerProfileRepository.findById(profile.getId()).get());
     }
 
-    @Override
+    private Map<String, Object> buildSyncData(FreelancerProfile p) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("id",                  p.getId().toString());
+        data.put("userId",              p.getUserId().toString());
+        data.put("title",               p.getTitle());
+        data.put("location",            p.getLocation());
+        data.put("hourlyRate",          p.getHourlyRate());
+        data.put("yearsOfExperience",   p.getYearsOfExperience());
+        data.put("availability",        p.getAvailability() != null
+                ? p.getAvailability().name() : "FULL_TIME");
+        data.put("avgRating",           p.getAvgRating());
+        data.put("totalReviews",        p.getTotalReviews());
+        data.put("totalJobsCompleted",  p.getTotalJobsCompleted());
+        // Convert skills to list of names
+        List<String> skillNames = p.getFreelancerSkills().stream()
+                .map(fs -> fs.getSkill().getName())
+                .collect(Collectors.toList());
+        data.put("skills", skillNames);
+        return data;
+    }
+
+	@Override
     public ProfileResponse getMyFreelancerProfile(UUID userId) {
         return mapFreelancerToResponse(
                 freelancerProfileRepository.findByUserId(userId)
@@ -129,6 +154,7 @@ public class ProfileServiceImpl implements ProfileService {
             profile.setAvailability(request.getAvailability());
 
         freelancerProfileRepository.save(profile);
+        searchClient.syncFreelancerProfile(buildSyncData(profile));
 
         notificationClient.send(
             "PROFILE_UPDATED",
@@ -380,6 +406,9 @@ public class ProfileServiceImpl implements ProfileService {
         profile.setAvgRating(avgRating);
         profile.setTotalReviews(totalReviews);
         freelancerProfileRepository.save(profile);
+        searchClient.updateRating(profile.getId(),
+                profile.getAvgRating().doubleValue(),
+                profile.getTotalReviews());
         log.info("Updated freelancer rating: userId={} avg={} total={}",
                 userId, avgRating, totalReviews);
     }
