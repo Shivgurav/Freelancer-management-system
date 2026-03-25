@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { useAppStore } from "@/store/use-app-store";
 import { formatCurrency } from "@/lib/utils";
-import { ArrowUpRight, Plus, Construction } from "lucide-react";
+import { ArrowUpRight, Plus, MessageSquare } from "lucide-react";
 import { useMyJobs } from "@/hooks/use-projects";
 import { useContracts } from "@/hooks/use-contracts";
 import { Link } from "react-router-dom";
@@ -132,19 +132,21 @@ export default function ClientDashboard() {
             </div>
           </div>
 
-          {/* Messages — under development */}
+          {/* Messages */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-display text-[15px] font-semibold text-ink">Messages</h2>
               <Link to="/messages" className="text-[12.5px] text-primary font-medium hover:underline">Open</Link>
             </div>
-            <div className="bg-surface border border-border rounded-xl shadow-sm p-4 flex items-center gap-3">
-              <Construction className="w-5 h-5 text-warning flex-shrink-0" />
-              <div>
-                <p className="text-[13px] font-medium text-ink">Messaging coming soon</p>
-                <p className="text-[12px] text-ink-3">Under development</p>
+            <Link to="/messages" className="bg-surface border border-border rounded-xl shadow-sm p-4 flex items-center gap-3 hover:bg-background transition-colors block">
+              <div className="w-9 h-9 rounded-xl bg-primary-bg flex items-center justify-center flex-shrink-0">
+                <MessageSquare className="w-4 h-4 text-primary" />
               </div>
-            </div>
+              <div>
+                <p className="text-[13px] font-medium text-ink">Open Messages</p>
+                <p className="text-[12px] text-ink-3">Chat with your freelancers</p>
+              </div>
+            </Link>
           </div>
         </div>
       </div>

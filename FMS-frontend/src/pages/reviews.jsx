@@ -3,34 +3,28 @@ import { Star, Check, CheckCircle, ArrowUpRight, ArrowDownLeft } from "lucide-re
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/use-app-store";
 import { submitReview, getMyReviews, getReviewsForUser } from "@/api/reviews";
-import { getFreelancerProfileById, getClientProfileById } from "@/api/profile";
+import { getUserById } from "@/api/auth";
 import { useContracts } from "@/hooks/use-contracts";
 
 const DEFAULT_TAGS = ["On time", "Great communication", "Quality work", "Would rehire"];
 
-// Enrich a list of reviews with reviewer/reviewee names via profile lookups
+// Enrich a list of reviews with reviewer/reviewee names via auth service
+async function resolveName(userId) {
+  if (!userId) return null;
+  try {
+    const info = await getUserById(userId);
+    if (!info) return null;
+    return [info.firstName, info.lastName].filter(Boolean).join(" ").trim() || info.email || null;
+  } catch { return null; }
+}
+
 async function enrichReviews(list) {
   return Promise.all(
     list.map(async (r) => {
-      // Try to resolve a name for the "other person" UUID (either reviewee or reviewer)
-      async function resolveName(userId) {
-        if (!userId) return null;
-        try {
-          const fp = await getFreelancerProfileById(userId);
-          const name = `${fp?.firstName || ""} ${fp?.lastName || ""}`.trim() || fp?.title;
-          if (name) return name;
-        } catch {}
-        try {
-          const cp = await getClientProfileById(userId);
-          const name = `${cp?.firstName || ""} ${cp?.lastName || ""}`.trim();
-          if (name) return name;
-        } catch {}
-        return null;
-      }
-
-      const revieweeName = await resolveName(r.revieweeId);
-      const reviewerName = await resolveName(r.reviewerId);
-
+      const [revieweeName, reviewerName] = await Promise.all([
+        resolveName(r.revieweeId),
+        resolveName(r.reviewerId),
+      ]);
       return {
         ...r,
         revieweeName: revieweeName || `User #${r.revieweeId?.slice(0, 8) || "?"}`,

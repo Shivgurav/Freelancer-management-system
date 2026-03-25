@@ -5,3 +5,5 @@ export * from "./bids";
 export * from "./contracts";
 export * from "./reviews";
 export * from "./notifications";
+export * from "./messages";
+export * from "./search";

@@ -15,6 +15,7 @@ import Profile from "@/pages/profile";
 import Reviews from "@/pages/reviews";
 import Bids from "@/pages/bids";
 import NotFoundPage from "@/pages/not-found";
+import FindFreelancers from "@/pages/find-freelancers";
 
 function DashboardRedirect() {
   const { currentRole, isAuthenticated } = useAppStore();
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/reviews" element={<Reviews />} />
         <Route path="/bids" element={<Bids />} />
+        <Route path="/freelancers" element={<FindFreelancers />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>

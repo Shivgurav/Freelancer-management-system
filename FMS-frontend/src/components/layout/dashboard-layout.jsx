@@ -3,7 +3,7 @@ import { useAppStore } from "@/store/use-app-store";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FolderKanban, FileText, MessageSquare,
-  User, Star, Search, Plus, Bell, LogOut, Construction,
+  User, Star, Search, Plus, Bell, LogOut, Users,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
@@ -49,9 +49,10 @@ export function DashboardLayout({ children, title }) {
       items: [
         { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/client" },
         { icon: Plus, label: "Post Project", href: "/post-project" },
+        { icon: Users, label: "Find Freelancers", href: "/freelancers" },
         { icon: FolderKanban, label: "My Contracts", href: "/tracking" },
         { icon: FileText, label: "Received Bids", href: "/bids" },
-        { icon: MessageSquare, label: "Messages", href: "/messages", underDev: true },
+        { icon: MessageSquare, label: "Messages", href: "/messages" },
       ],
     },
     {
@@ -71,7 +72,7 @@ export function DashboardLayout({ children, title }) {
         { icon: Search, label: "Browse Projects", href: "/projects" },
         { icon: FileText, label: "My Bids", href: "/bids" },
         { icon: FolderKanban, label: "My Contracts", href: "/tracking" },
-        { icon: MessageSquare, label: "Messages", href: "/messages", underDev: true },
+        { icon: MessageSquare, label: "Messages", href: "/messages" },
       ],
     },
     {
@@ -140,10 +141,7 @@ export function DashboardLayout({ children, title }) {
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
                     <span>{item.label}</span>
-                    {item.underDev && (
-                      <Construction className="w-3 h-3 text-warning ml-auto" title="Under development" />
-                    )}
-                    {!item.underDev && item.badge > 0 && (
+                    {item.badge > 0 && (
                       <span className="ml-auto bg-primary text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                         {item.badge}
                       </span>

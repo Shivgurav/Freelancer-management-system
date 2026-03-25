@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { login as apiLogin, logout as apiLogout, register as apiRegister } from "@/api/auth";
 import { getMyFreelancerProfile, updateFreelancerProfile, getMyClientProfile, updateClientProfile, initFreelancerProfile, initClientProfile } from "@/api/profile";
 import { getMyNotifications } from "@/api/notifications";
-import { getAccessToken, getRefreshToken } from "@/api/config";
+import { getAccessToken, getRefreshToken, clearTokens } from "@/api/config";
 
 // ── JWT decode (no library needed — just base64 the payload) ──────────────────
 function decodeJwtPayload(token) {

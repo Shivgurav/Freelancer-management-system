@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getMyContracts, getMilestonesForContract } from "@/api/contracts";
+import { getUserById } from "@/api/auth";
 import { getJobById } from "@/api/jobs";
-import { getFreelancerProfileById, getClientProfileById } from "@/api/profile";
 import { useAppStore } from "@/store/use-app-store";
 
 // Normalize ContractResponse from backend to UI shape
@@ -48,26 +48,14 @@ async function fetchJobTitle(jobId) {
   }
 }
 
-// Fetch the other party's name given their id and role
-async function fetchPartyName(userId, role) {
+// Fetch a user's display name via the auth service (uses userId not profileId)
+async function fetchUserName(userId) {
+  if (!userId) return null;
   try {
-    if ((role || "").toUpperCase() === "FREELANCER") {
-      // profileId ≠ userId — profile service stores by userId internally
-      // GET /api/profiles/freelancer/{profileId} takes the profile UUID, not user UUID.
-      // We need to look up by userId, which only /freelancer/me supports.
-      // Workaround: try getFreelancerProfileById first (it uses profileId),
-      // but we only have userId. Use getClientProfileById as fallback.
-      // Since we can't get name by userId from a public endpoint, return null gracefully.
-      const profile = await getFreelancerProfileById(userId);
-      if (profile?.userId === userId || profile) {
-        // profile.id is the profileId; profile.userId is the auth userId
-        // The endpoint is /api/profiles/freelancer/{profileId} — so this only works
-        // if the UUID we have happens to be the profile UUID. Usually it's userId.
-        // Best effort: return whatever name fields we get.
-        return null; // Will be resolved below via userId-based lookup
-      }
-    }
-    return null;
+    const info = await getUserById(userId);
+    if (!info) return null;
+    const name = [info.firstName, info.lastName].filter(Boolean).join(" ").trim();
+    return name || info.email || null;
   } catch {
     return null;
   }
@@ -102,26 +90,11 @@ export function useContracts() {
           let freelancerName = null;
 
           if (isCurrentUserClient) {
-            // Current user IS the client
             clientName = user ? `${user.firstName} ${user.lastName}`.trim() || user.name : null;
-            // Other party is freelancer — try to get their profile
-            try {
-              const fp = await getFreelancerProfileById(contract.freelancerId);
-              // The profile endpoint uses profileId not userId, but we try userId as fallback
-              freelancerName = fp ? `${fp.firstName || ""} ${fp.lastName || ""}`.trim() || fp.title || null : null;
-            } catch {
-              freelancerName = null;
-            }
+            freelancerName = await fetchUserName(contract.freelancerId);
           } else {
-            // Current user IS the freelancer
             freelancerName = user ? `${user.firstName} ${user.lastName}`.trim() || user.name : null;
-            // Other party is client — try to get their profile
-            try {
-              const cp = await getClientProfileById(contract.clientId);
-              clientName = cp ? `${cp.firstName || ""} ${cp.lastName || ""}`.trim() || null : null;
-            } catch {
-              clientName = null;
-            }
+            clientName = await fetchUserName(contract.clientId);
           }
 
           return {

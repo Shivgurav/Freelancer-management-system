@@ -58,3 +58,8 @@ export async function refreshToken(token) {
 // The API Gateway strips the Authorization header before forwarding to the
 // auth service, so calling /api/auth/me from the browser results in 403.
 // Instead, the store decodes the JWT payload directly (no network call needed).
+
+// GET /api/auth/user/{userId} — internal user info lookup
+export function getUserById(userId) {
+  return apiFetch(`/auth/user/${userId}`);
+}
