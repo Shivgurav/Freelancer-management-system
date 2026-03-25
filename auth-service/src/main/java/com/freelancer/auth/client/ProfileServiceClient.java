@@ -13,11 +13,20 @@ import java.util.UUID;
 @Component
 public class ProfileServiceClient {
 
-    // CRITICAL FIX: Original code created a plain WebClient:
-    //   WebClient.builder().baseUrl(profileServiceUrl).build()
-    // Plain WebClient cannot resolve Eureka service names like
-    // "http://profile-service" — needs the @LoadBalanced builder bean.
-    // Now injecting the @LoadBalanced WebClient.Builder instead.
+    /*
+     * BUG FIX #4 — INJECT @LoadBalanced WebClient.Builder, NOT a plain WebClient
+     *
+     * Original code created its own WebClient instance:
+     *   private final WebClient webClient;
+     *   public ProfileServiceClient(...) {
+     *       this.webClient = WebClient.builder().baseUrl(url).build();
+     *   }
+     *
+     * This bypasses the @LoadBalanced bean entirely. A plain WebClient
+     * cannot resolve Eureka service names ("http://profile-service").
+     * The fix: inject the @LoadBalanced WebClient.Builder bean and call
+     * .build() on each request — this ensures Eureka resolution works.
+     */
     private final WebClient.Builder webClientBuilder;
 
     @Value("${services.profile}")
@@ -28,9 +37,9 @@ public class ProfileServiceClient {
     }
 
     public void createProfileForUser(UUID userId,
-                                      String firstName,
-                                      String lastName,
-                                      String role) {
+                                     String firstName,
+                                     String lastName,
+                                     String role) {
         try {
             if ("FREELANCER".equals(role)) {
                 createFreelancerProfile(userId, firstName, lastName);
@@ -38,14 +47,16 @@ public class ProfileServiceClient {
                 createClientProfile(userId, firstName, lastName);
             }
         } catch (Exception e) {
-            log.error("Failed to auto-create profile for userId: {} — {}",
-                      userId, e.getMessage());
+            // Non-fatal: user is registered, profile creation failed.
+            // Log the error so it's visible in logs.
+            log.error("Failed to auto-create profile for userId: {} role: {} — {}",
+                      userId, role, e.getMessage());
         }
     }
 
     private void createFreelancerProfile(UUID userId,
-                                          String firstName,
-                                          String lastName) {
+                                         String firstName,
+                                         String lastName) {
         Map<String, Object> body = new HashMap<>();
         body.put("title", firstName + " " + lastName);
         body.put("bio", "");
@@ -65,8 +76,8 @@ public class ProfileServiceClient {
     }
 
     private void createClientProfile(UUID userId,
-                                      String firstName,
-                                      String lastName) {
+                                     String firstName,
+                                     String lastName) {
         Map<String, Object> body = new HashMap<>();
         body.put("firstName",   firstName);
         body.put("lastName",    lastName);

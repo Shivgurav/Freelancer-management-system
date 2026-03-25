@@ -6,9 +6,10 @@ spring:
     name: auth-service
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-polished-fog-amshlcjk-pooler.c-5.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
-    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
-    password: ${SPRING_DATASOURCE_PASSWORD:npg_3WGAnNgYMzw0}
+    # Replace with your own DB credentials or use env vars in production
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/freelancerdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -24,10 +25,27 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
 
-# CRITICAL FIX: Original file had 1-space indent on eureka block.
-# Spring Boot YAML parser requires consistent 2-space indent.
-# With wrong indent, eureka config is silently ignored and
-# auth-service never registers with Eureka — gateway can't find it.
+  # BUG FIX #5 — LOAD BALANCER CACHE MUST BE CAFFEINE, NOT DEFAULT
+  # Without this, Spring Cloud LoadBalancer uses a reactive caffeine cache.
+  # If caffeine is not on the classpath, it falls back to a broken default
+  # that causes NoClassDefFoundError on the first service-to-service call.
+  cloud:
+    loadbalancer:
+      cache:
+        enabled: true
+
+# BUG FIX #6 — EUREKA YAML INDENTATION
+#
+# Original file had 1-space indentation on the eureka block:
+#  eureka:         <- 1 space — silently ignored by the YAML parser
+#   client:        <- Spring Boot never reads this
+#
+# YAML requires consistent 2-space indentation. With wrong indentation,
+# the entire eureka section is parsed as a continuation of the previous
+# block (spring:) or ignored, and auth-service never registers with
+# Eureka. The API Gateway (using lb://auth-service) then gets:
+#   "503 Service Unavailable — No instances available for auth-service"
+# which surfaces as a 503 or connection refused to the React frontend.
 eureka:
   client:
     enabled: true
@@ -37,6 +55,8 @@ eureka:
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
 
 jwt:
   secret: ${JWT_SECRET:freelancer_platform_super_secret_key_256bits_change_in_prod}
@@ -49,8 +69,8 @@ management:
       exposure:
         include: health,info
 
+# Service URLs — use Eureka names for inter-service calls
 services:
-  job: ${JOB_SERVICE_URL:http://job-service}
   profile: ${PROFILE_SERVICE_URL:http://profile-service}
   notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
 

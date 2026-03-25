@@ -4,6 +4,7 @@ import com.freelancer.contract.client.AuthClient;
 import com.freelancer.contract.client.AuthClient.UserInfo;
 import com.freelancer.contract.client.JobClient;
 import com.freelancer.contract.client.JobClient.JobInfo;
+import com.freelancer.contract.client.MessageClient;
 import com.freelancer.contract.client.NotificationClient;
 import com.freelancer.contract.dto.request.ContractRequest;
 import com.freelancer.contract.dto.response.ContractResponse;
@@ -29,9 +30,15 @@ import java.util.stream.Collectors;
 public class ContractServiceImpl implements ContractService {
 
     private final ContractRepository contractRepository;
-    private final NotificationClient notificationClient;
-    private final AuthClient         authClient;
-    private final JobClient          jobClient;
+    private final NotificationClient  notificationClient;
+    private final AuthClient          authClient;
+    private final JobClient           jobClient;
+    /*
+     * BUG FIX — INJECT THE NEW MessageClient
+     * This was missing entirely. Without it, no chat room was ever
+     * created when a contract was accepted.
+     */
+    private final MessageClient       messageClient;
 
     @Override
     @Transactional
@@ -56,10 +63,12 @@ public class ContractServiceImpl implements ContractService {
 
         contractRepository.save(contract);
 
+        // Fetch user and job info for notifications and chat room
         UserInfo clientInfo     = authClient.getUserInfo(request.getClientId());
         JobInfo  jobInfo        = jobClient.getJobInfo(request.getJobId());
         UserInfo freelancerInfo = authClient.getUserInfo(request.getFreelancerId());
 
+        // Send contract creation notifications
         notificationClient.send(
             "CONTRACT_CREATED",
             clientInfo.getEmail(),
@@ -81,6 +90,30 @@ public class ContractServiceImpl implements ContractService {
                 "startDate",    contract.getStartDate() != null
                                     ? contract.getStartDate().toString() : ""
             )
+        );
+
+        /*
+         * BUG FIX — AUTO-CREATE CHAT ROOM IN MESSAGE SERVICE
+         *
+         * This call was completely missing before. Now every new contract
+         * automatically gets its own dedicated chat room. The chat room is
+         * keyed by contractId (unique), so:
+         *
+         *   - Same client + same freelancer, NEW contract → NEW chat room ✓
+         *     (each contract is a separate project conversation)
+         *   - Calling createContract twice for the SAME bid → blocked above
+         *     by the bidId uniqueness check, so no duplicate rooms
+         *
+         * The call is fire-and-forget via MessageClient.subscribe(), so a
+         * message-service outage never prevents contract creation.
+         */
+        messageClient.createChatRoom(
+            contract.getId(),
+            contract.getClientId(),
+            contract.getFreelancerId(),
+            clientInfo.getFullName(),
+            freelancerInfo.getFullName(),
+            jobInfo.getTitle()
         );
 
         log.info("Contract created — jobId: {} bidId: {}",
@@ -144,8 +177,6 @@ public class ContractServiceImpl implements ContractService {
         JobInfo  jobInfo        = jobClient.getJobInfo(contract.getJobId());
         UserInfo freelancerInfo = authClient.getUserInfo(contract.getFreelancerId());
 
-        // FIX: was sending "CONTRACT_CREATED" event on contract completion — wrong.
-        // Corrected to "CONTRACT_COMPLETED" so the right email template is used.
         notificationClient.send(
             "CONTRACT_COMPLETED",
             clientInfo.getEmail(),

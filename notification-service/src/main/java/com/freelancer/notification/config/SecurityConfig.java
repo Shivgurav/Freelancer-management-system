@@ -44,7 +44,6 @@ public class SecurityConfig {
             .addFilterBefore(
                     gatewayHeaderFilter,
                     AnonymousAuthenticationFilter.class)
-
             .authorizeHttpRequests(auth -> auth
             		.requestMatchers("/api/notifications/**", "/actuator/**").permitAll()
                 .requestMatchers(

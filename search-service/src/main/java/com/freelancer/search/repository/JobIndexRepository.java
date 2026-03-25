@@ -14,26 +14,33 @@ import java.util.UUID;
 public interface JobIndexRepository
         extends JpaRepository<JobIndex, UUID> {
 
-    // ── Full job search — all filters combined ────────────────────
-    @Query("""
-        SELECT j FROM JobIndex j
+    /*
+     * BUG FIX — lower(bytea) ERROR ON POSTGRESQL (same fix as FreelancerIndexRepository)
+     *
+     * JPQL LOWER(CONCAT('%', :param, '%')) with a null param causes:
+     *   "ERROR: function lower(bytea) does not exist"
+     * because PostgreSQL infers null as bytea.
+     *
+     * Fix: switch to nativeQuery = true and use :param::text to force
+     * PostgreSQL to treat the parameter as text before passing to lower().
+     */
+
+    @Query(value = """
+        SELECT *
+        FROM job_index j
         WHERE j.status = 'OPEN'
-        AND (:skill IS NULL OR
-             LOWER(j.requiredSkills) LIKE
-             LOWER(CONCAT('%', :skill, '%')))
-        AND (:minBudget IS NULL OR
-             j.budgetMax >= :minBudget)
-        AND (:maxBudget IS NULL OR
-             j.budgetMin <= :maxBudget)
-        AND (:experienceLevel IS NULL OR
-             j.experienceLevel = :experienceLevel)
-        AND (:keyword IS NULL OR
-             LOWER(j.title) LIKE
-             LOWER(CONCAT('%', :keyword, '%'))
-             OR LOWER(j.description) LIKE
-             LOWER(CONCAT('%', :keyword, '%')))
-        ORDER BY j.createdAt DESC
-        """)
+          AND (:skill           IS NULL OR lower(j.required_skills) LIKE lower('%' || :skill::text           || '%'))
+          AND (:minBudget       IS NULL OR j.budget_max >= :minBudget)
+          AND (:maxBudget       IS NULL OR j.budget_min <= :maxBudget)
+          AND (:experienceLevel IS NULL OR j.experience_level = :experienceLevel::text)
+          AND (
+               :keyword IS NULL
+               OR lower(j.title)       LIKE lower('%' || :keyword::text || '%')
+               OR lower(j.description) LIKE lower('%' || :keyword::text || '%')
+              )
+        ORDER BY j.created_at DESC
+        """,
+        nativeQuery = true)
     List<JobIndex> searchJobs(
             @Param("skill")           String skill,
             @Param("minBudget")       BigDecimal minBudget,

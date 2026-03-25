@@ -17,7 +17,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +54,8 @@ public class JobServiceImpl implements JobService {
                 .durationDays(request.getDurationDays())
                 .experienceLevel(request.getExperienceLevel())
                 .requiredSkills(skillsStr)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .status(JobStatus.OPEN)
                 .build();
 
@@ -62,15 +66,19 @@ public class JobServiceImpl implements JobService {
 
         // FIX: was sending notification TWICE — once via authClient and once via
         // UserPrincipal.getCurrentUserEmail(). Removed the duplicate.
+     // Replace the notification call with null-safe version
+        Map<String, String> notifData = new HashMap<>();
+        notifData.put("jobTitle",  job.getTitle());
+        notifData.put("budgetMin", job.getBudgetMin() != null
+                ? job.getBudgetMin().toString() : "0");
+        notifData.put("budgetMax", job.getBudgetMax() != null
+                ? job.getBudgetMax().toString() : "0");
+
         notificationClient.send(
             "JOB_POSTED",
             clientInfo.getEmail(),
             clientInfo.getFullName(),
-            Map.of(
-                "jobTitle",  job.getTitle(),
-                "budgetMin", job.getBudgetMin().toString(),
-                "budgetMax", job.getBudgetMax().toString()
-            )
+            notifData
         );
 
         log.info("Job created by clientId: {} — title: {}",
@@ -182,9 +190,17 @@ public class JobServiceImpl implements JobService {
         data.put("status",          job.getStatus().name());
         data.put("experienceLevel", job.getExperienceLevel());
         data.put("durationDays",    job.getDurationDays());
+     // Replace buildJobSyncData with null-safe version
+        String skills = job.getRequiredSkills();
         data.put("requiredSkills",
-                 Arrays.asList(job.getRequiredSkills().split(",")));
-        data.put("createdAt",       job.getCreatedAt().toString());
+            (skills != null && !skills.isBlank())
+                ? Arrays.asList(skills.split(","))
+                : Collections.emptyList());
+
+        data.put("createdAt",
+            job.getCreatedAt() != null
+                ? job.getCreatedAt().toString()
+                : LocalDateTime.now().toString());
         return data;
     }
 }

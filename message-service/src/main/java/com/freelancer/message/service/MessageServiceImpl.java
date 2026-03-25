@@ -8,7 +8,6 @@ import com.freelancer.message.enums.MessageType;
 import com.freelancer.message.exception.MessageException;
 import com.freelancer.message.repository.ChatRoomRepository;
 import com.freelancer.message.repository.MessageRepository;
-import com.freelancer.message.service.MessageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -38,11 +37,31 @@ public class MessageServiceImpl implements MessageService {
                                     String freelancerName,
                                     String jobTitle) {
 
-        // Return existing room if already created
-        if (chatRoomRepository.existsByContractId(contractId)) {
-            return chatRoomRepository
-                    .findByContractId(contractId)
-                    .orElseThrow();
+        /*
+         * BUG FIX #1 — IDEMPOTENT BY CONTRACT ID, NOT BY PAIR
+         *
+         * Original logic: existsByContractId(contractId) → return if exists.
+         * This is CORRECT: one chat room per contract. If the same client
+         * and freelancer create a SECOND contract together, that is a NEW
+         * project and deserves its own dedicated chat room.
+         *
+         * The original code would have been fine IF contract-service was
+         * actually calling this endpoint — which it wasn't (see MessageClient fix).
+         *
+         * What we do NOT want is: existsByClientIdAndFreelancerId(...) → return
+         * existing room. That would merge conversations from multiple contracts
+         * into a single chat, which is confusing.
+         *
+         * Schema: ChatRoom has unique constraint on contract_id — enforced at
+         * DB level. This service-level check is just a friendly guard.
+         */
+        Optional<ChatRoom> existing =
+                chatRoomRepository.findByContractId(contractId);
+
+        if (existing.isPresent()) {
+            log.info("Chat room already exists for contractId: {} — returning existing",
+                     contractId);
+            return existing.get();
         }
 
         ChatRoom room = ChatRoom.builder()
@@ -56,7 +75,7 @@ public class MessageServiceImpl implements MessageService {
 
         chatRoomRepository.save(room);
 
-        // System message to start the conversation
+        // System message to open the conversation
         Message systemMsg = Message.builder()
                 .contractId(contractId)
                 .senderId(clientId)
@@ -70,8 +89,7 @@ public class MessageServiceImpl implements MessageService {
 
         messageRepository.save(systemMsg);
 
-        log.info("Chat room created — contractId: {}",
-                contractId);
+        log.info("Chat room created — contractId: {}", contractId);
         return room;
     }
 
@@ -88,7 +106,6 @@ public class MessageServiceImpl implements MessageService {
                         "Chat room not found for contract: "
                         + request.getContractId()));
 
-        // Verify sender is part of this chat
         boolean isMember =
                 room.getClientId().equals(senderId)
                 || room.getFreelancerId().equals(senderId);
@@ -98,7 +115,6 @@ public class MessageServiceImpl implements MessageService {
                     "You are not a member of this chat room");
         }
 
-        // Recipient is the OTHER person in the room
         UUID recipientId = room.getClientId().equals(senderId)
                 ? room.getFreelancerId()
                 : room.getClientId();
@@ -118,8 +134,7 @@ public class MessageServiceImpl implements MessageService {
                 .build();
 
         messageRepository.save(message);
-        log.debug("Message saved — from: {} to: {}",
-                senderId, recipientId);
+        log.debug("Message saved — from: {} to: {}", senderId, recipientId);
 
         return mapToResponse(message, senderId);
     }
@@ -138,7 +153,7 @@ public class MessageServiceImpl implements MessageService {
                 .map(m -> mapToResponse(m, userId))
                 .collect(Collectors.toList());
 
-        // Reverse so oldest is first in chat window
+        // Reverse so oldest appears first in chat window
         Collections.reverse(messages);
         return messages;
     }
@@ -172,10 +187,8 @@ public class MessageServiceImpl implements MessageService {
     public List<Map<String, Object>> getMyChatRooms(UUID userId,
                                                      String role) {
         List<ChatRoom> rooms = "CLIENT".equals(role)
-                ? chatRoomRepository
-                        .findByClientIdAndIsActiveTrue(userId)
-                : chatRoomRepository
-                        .findByFreelancerIdAndIsActiveTrue(userId);
+                ? chatRoomRepository.findByClientIdAndIsActiveTrue(userId)
+                : chatRoomRepository.findByFreelancerIdAndIsActiveTrue(userId);
 
         return rooms.stream().map(room -> {
             Map<String, Object> info = new LinkedHashMap<>();
@@ -195,23 +208,17 @@ public class MessageServiceImpl implements MessageService {
     // ── Get unread count ──────────────────────────────────────────
     @Override
     public long getUnreadCount(UUID userId) {
-        return messageRepository
-                .countByRecipientIdAndIsReadFalse(userId);
+        return messageRepository.countByRecipientIdAndIsReadFalse(userId);
     }
 
     // ── Scheduled cleanup — runs every day at midnight ────────────
-    // Deletes messages older than 6 months
-    // Keeps Supabase storage under control
     @Scheduled(cron = "0 0 0 * * *")
     @Transactional
     public void cleanOldMessages() {
-        LocalDateTime sixMonthsAgo = LocalDateTime.now()
-                .minusMonths(6);
-
+        LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
         chatRoomRepository.findAll().forEach(room ->
                 messageRepository.deleteOldMessages(
                         room.getContractId(), sixMonthsAgo));
-
         log.info("Old messages cleaned up");
     }
 
@@ -235,8 +242,7 @@ public class MessageServiceImpl implements MessageService {
         }
     }
 
-    private MessageResponse mapToResponse(Message m,
-                                           UUID viewerId) {
+    private MessageResponse mapToResponse(Message m, UUID viewerId) {
         return MessageResponse.builder()
                 .id(m.getId())
                 .contractId(m.getContractId())
@@ -249,8 +255,7 @@ public class MessageServiceImpl implements MessageService {
                 .fileName(m.getFileName())
                 .isRead(m.isRead())
                 .sentAt(m.getSentAt())
-                .direction(m.getSenderId().equals(viewerId)
-                        ? "ME" : "THEM")
+                .direction(m.getSenderId().equals(viewerId) ? "ME" : "THEM")
                 .build();
     }
 }
