@@ -64,7 +64,8 @@ public class AuthServiceImpl implements AuthService {
         	    user.getEmail(),
         	    user.getFirstName() + " " + user.getLastName(),
         	    Map.of(
-        	        "firstName", user.getFirstName()
+        	        "firstName", user.getFirstName(),
+        	        "title","welcome to our website"
         	    )
         	);
         log.info("Registered: {} [{}]", user.getEmail(), user.getRole());

@@ -6,11 +6,10 @@ spring:
     name: message-service
 
   datasource:
-    url: jdbc:postgresql://dpg-d7115ijuibrs739la8f0-a.singapore-postgres.render.com:5432/messageservice
-    username: messageservice_user
-    password: 5ByWqlF6kxQ0Ws9pRbW6VBQk80wEGlQS
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/freelancerdb}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
-
     hikari:
       maximum-pool-size: 5
       minimum-idle: 1
@@ -31,12 +30,24 @@ eureka:
   client:
     enabled: true
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: ${EUREKA_URI:http://localhost:8761/eureka/}
     registry-fetch-interval-seconds: 5
-
   instance:
     prefer-ip-address: true
     instance-id: ${spring.application.name}:${server.port}
+
+# BUG FIX — jwt.secret WAS MISSING FROM THIS FILE
+#
+# WebSocketConfig now validates the JWT token at handshake time.
+# It injects ${jwt.secret} via @Value. Without this entry,
+# Spring throws:
+#   IllegalArgumentException: Could not resolve placeholder 'jwt.secret'
+# and message-service fails to start.
+#
+# Must use the SAME secret as api-gateway and auth-service so tokens
+# issued by auth-service can be verified here.
+jwt:
+  secret: ${JWT_SECRET:freelancer_platform_super_secret_key_256bits_change_in_prod}
 
 management:
   endpoints:

@@ -15,28 +15,22 @@ public interface JobIndexRepository
         extends JpaRepository<JobIndex, UUID> {
 
     /*
-     * BUG FIX — lower(bytea) ERROR ON POSTGRESQL (same fix as FreelancerIndexRepository)
-     *
-     * JPQL LOWER(CONCAT('%', :param, '%')) with a null param causes:
-     *   "ERROR: function lower(bytea) does not exist"
-     * because PostgreSQL infers null as bytea.
-     *
-     * Fix: switch to nativeQuery = true and use :param::text to force
-     * PostgreSQL to treat the parameter as text before passing to lower().
+     * Same fix as FreelancerIndexRepository:
+     * Use CAST(:param AS text) instead of :param::text
+     * to avoid Hibernate mis-parsing the parameter name.
      */
-
     @Query(value = """
         SELECT *
         FROM job_index j
         WHERE j.status = 'OPEN'
-          AND (:skill           IS NULL OR lower(j.required_skills) LIKE lower('%' || :skill::text           || '%'))
-          AND (:minBudget       IS NULL OR j.budget_max >= :minBudget)
-          AND (:maxBudget       IS NULL OR j.budget_min <= :maxBudget)
-          AND (:experienceLevel IS NULL OR j.experience_level = :experienceLevel::text)
+          AND (:skill           IS NULL OR lower(j.required_skills) LIKE lower('%' || CAST(:skill           AS text) || '%'))
+          AND (:minBudget       IS NULL OR j.budget_max             >= :minBudget)
+          AND (:maxBudget       IS NULL OR j.budget_min             <= :maxBudget)
+          AND (:experienceLevel IS NULL OR j.experience_level       =  CAST(:experienceLevel AS text))
           AND (
                :keyword IS NULL
-               OR lower(j.title)       LIKE lower('%' || :keyword::text || '%')
-               OR lower(j.description) LIKE lower('%' || :keyword::text || '%')
+               OR lower(j.title)       LIKE lower('%' || CAST(:keyword AS text) || '%')
+               OR lower(j.description) LIKE lower('%' || CAST(:keyword AS text) || '%')
               )
         ORDER BY j.created_at DESC
         """,
@@ -48,6 +42,5 @@ public interface JobIndexRepository
             @Param("experienceLevel") String experienceLevel,
             @Param("keyword")         String keyword);
 
-    // ── Latest open jobs ──────────────────────────────────────────
     List<JobIndex> findByStatusOrderByCreatedAtDesc(String status);
 }
