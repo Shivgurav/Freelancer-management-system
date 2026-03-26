@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { getFreelancerProfileById, getClientProfileById, addSkill, removeSkill } from "@/api/profile";
 import { useContracts } from "@/hooks/use-contracts";
+// import { SkillSelect } from "@/components/ui/skill-select"
 
 export default function Profile() {
   const { user, saveProfile, currentRole, setUser } = useAppStore();
@@ -360,6 +361,39 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+
+      {/* {isFreelancer && !isReadOnly && editing && (
+        <div className="space-y-4">
+          <SkillSelect
+            selectedSkills={form.skills || []}
+            onChange={(skills) => setForm((f) => ({ ...f, skills }))}
+            error={skillError}
+          />
+        </div>
+      )}
+
+      {isFreelancer && profile.skills && profile.skills.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold text-ink">Skills</h3>
+          <div className="flex flex-wrap gap-2">
+            {profile.skills.map((skill) => (
+              <SkillTag
+                key={skill.id || skill.name}
+                onRemove={!isReadOnly && editing ? () => handleRemoveSkill(skill.id) : undefined}
+                className={cn(
+                  "px-3 py-1.5 text-sm",
+                  skill.proficiencyLevel === "EXPERT" && "bg-primary-bg text-primary-dark",
+                  skill.proficiencyLevel === "INTERMEDIATE" && "bg-surface text-ink border border-border",
+                  skill.proficiencyLevel === "BEGINNER" && "bg-background text-ink-2 border border-border"
+                )}
+              >
+                {skill.name || skill}
+              </SkillTag>
+            ))}
+          </div>
+        </div>
+      )} */}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">

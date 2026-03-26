@@ -26,8 +26,9 @@ function formatRoomDate(ts) {
 
 // ── Room list item ─────────────────────────────────────────────────────────────
 
-function RoomItem({ room, active, currentUserId, onClick }) {
-  const other = room.clientId === currentUserId
+function RoomItem({ room, active, onClick }) {
+  const {currentRole} = useAppStore();
+  const other = currentRole == "client"
     ? (room.freelancerName || "Freelancer")
     : (room.clientName || "Client");
   const initial = other.charAt(0).toUpperCase();
@@ -312,7 +313,7 @@ export default function Messages() {
                   key={room.contractId || room.id}
                   room={room}
                   active={activeRoom?.contractId === room.contractId}
-                  currentUserId={userId}
+                  // currentUserId={userId}
                   onClick={() => selectRoom(room)}
                 />
               ))

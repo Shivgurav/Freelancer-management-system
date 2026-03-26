@@ -39,12 +39,18 @@ function notifySubs(topic, payload) {
 }
 
 export function connectWS(userId, onConnect, onDisconnect) {
-  if (stompClient && connected) { onConnect?.(); return; }
+  if (stompClient && connected) {
+    onConnect?.();
+    return;
+  }
 
   const token = getAccessToken();
 
   stompClient = new Client({
-    webSocketFactory: () => new SockJS(WS_URL),
+    webSocketFactory: () => {
+      const token = getAccessToken();
+      return new SockJS(`${WS_URL}?token=${token}`);
+    },
     connectHeaders: { Authorization: token ? `Bearer ${token}` : "" },
     reconnectDelay: 5000,
     onConnect: () => {
@@ -59,12 +65,20 @@ export function connectWS(userId, onConnect, onDisconnect) {
       });
       // Read receipts
       stompClient.subscribe(`/user/${userId}/queue/read-receipt`, (frame) => {
-        try { notifySubs("read-receipt", JSON.parse(frame.body)); } catch {}
+        try {
+          notifySubs("read-receipt", JSON.parse(frame.body));
+        } catch {}
       });
       onConnect?.();
     },
-    onDisconnect: () => { connected = false; onDisconnect?.(); },
-    onStompError: () => { connected = false; onDisconnect?.(); },
+    onDisconnect: () => {
+      connected = false;
+      onDisconnect?.();
+    },
+    onStompError: () => {
+      connected = false;
+      onDisconnect?.();
+    },
   });
 
   stompClient.activate();
@@ -76,7 +90,9 @@ export function disconnectWS() {
   connected = false;
 }
 
-export function isWSConnected() { return connected; }
+export function isWSConnected() {
+  return connected;
+}
 
 export function sendWSMessage(contractId, content) {
   if (!stompClient || !connected) throw new Error("WebSocket not connected");

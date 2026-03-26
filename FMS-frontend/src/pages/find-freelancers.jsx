@@ -2,8 +2,9 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { formatCurrency } from "@/lib/utils";
 import { SkillTag } from "@/components/ui/skill-tag";
 import { searchFreelancers, getTopRatedFreelancers } from "@/api/search";
-import { Star, MapPin, Briefcase, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Star, MapPin, Briefcase, Search, SlidersHorizontal, ChevronLeft, ChevronRight, X, DollarSign } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from 'react-router-dom'
 
 const SORT_OPTIONS = [
   { value: "rating",         label: "Top Rated" },
@@ -44,61 +45,82 @@ function StarRating({ rating, count }) {
 }
 
 function FreelancerCard({ f }) {
+  const navigate = useNavigate();
   const initials = f.fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
-  const availColor = {
-    FULL_TIME:     "bg-success-bg text-success-text",
-    PART_TIME:     "bg-warning-bg text-warning-text",
-    NOT_AVAILABLE: "bg-danger-bg text-danger-text",
-  }[f.availability] || "bg-background text-ink-3";
-
+  
   return (
-    <div className="bg-surface border border-border rounded-xl p-5 shadow-sm hover:shadow-md hover:border-primary-light transition-all flex flex-col gap-3">
-      <div className="flex items-start gap-3">
-        <div className="w-11 h-11 rounded-full bg-primary-light text-primary-darker flex items-center justify-center text-[14px] font-bold flex-shrink-0">
+    <div
+      onClick={() => navigate(`/freelancer/${f.profileId || f.userId}`)}
+      className="bg-surface border border-border rounded-2xl p-5 hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
+    >
+      <div className="flex gap-4">
+        {/* Avatar */}
+        <div className="w-16 h-16 rounded-xl bg-primary flex items-center justify-center text-xl font-bold text-white group-hover:scale-105 transition-transform">
           {initials}
         </div>
+
+        {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <h3 className="font-display text-[14.5px] font-semibold text-ink">{f.fullName}</h3>
-              {f.title && <p className="text-[12.5px] text-ink-3 mt-0.5 truncate">{f.title}</p>}
+              <h3 className="font-semibold text-ink group-hover:text-primary transition-colors">
+                {f.fullName}
+              </h3>
+              {f.title && (
+                <p className="text-sm text-primary-dark mt-0.5">{f.title}</p>
+              )}
             </div>
-            {f.availability && f.availability !== "NOT_AVAILABLE" && (
-              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold flex-shrink-0 ${availColor}`}>
-                {f.availability.replace("_", " ")}
+            {f.avgRating && (
+              <StarRating rating={f.avgRating} count={f.totalReviews} />
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3 mt-2 text-xs text-ink-2">
+            {f.hourlyRate && (
+              <span className="flex items-center gap-1">
+                <DollarSign className="w-3 h-3" />
+                {formatCurrency(f.hourlyRate)}/hr
+              </span>
+            )}
+            {f.location && (
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3 h-3" />
+                {f.location}
+              </span>
+            )}
+            {f.yearsOfExperience != null && (
+              <span className="flex items-center gap-1">
+                <Briefcase className="w-3 h-3" />
+                {f.yearsOfExperience}y exp
               </span>
             )}
           </div>
-        </div>
-      </div>
 
-      <div className="flex flex-wrap gap-3 text-[12px] text-ink-3">
-        {f.hourlyRate && (
-          <span className="font-semibold text-ink-2">{formatCurrency(f.hourlyRate)}/hr</span>
-        )}
-        {f.location && (
-          <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{f.location}</span>
-        )}
-        {f.yearsOfExperience != null && (
-          <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" />{f.yearsOfExperience}y exp</span>
-        )}
-        {f.avgRating && <StarRating rating={f.avgRating} count={f.totalReviews} />}
-      </div>
-
-      {f.skills.length > 0 && (
-        <div className="flex gap-1.5 flex-wrap">
-          {f.skills.slice(0, 5).map((s) => <SkillTag key={s}>{s}</SkillTag>)}
-          {f.skills.length > 5 && (
-            <span className="text-[11px] text-ink-3 self-center">+{f.skills.length - 5}</span>
+          {f.skills.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {f.skills.slice(0, 5).map((s, i) => (
+                <SkillTag key={i} className="px-2 py-1 text-xs">
+                  {s.name || s}
+                </SkillTag>
+              ))}
+              {f.skills.length > 5 && (
+                <span className="px-2 py-1 text-xs text-ink-3">+{f.skills.length - 5}</span>
+              )}
+            </div>
           )}
-        </div>
-      )}
 
-      {f.totalJobsCompleted > 0 && (
-        <p className="text-[11.5px] text-success-text bg-success-bg rounded-lg px-2.5 py-1 w-fit font-medium">
-          {f.totalJobsCompleted} job{f.totalJobsCompleted !== 1 ? "s" : ""} completed
-        </p>
-      )}
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+            {f.totalJobsCompleted > 0 && (
+              <span className="text-xs text-ink-2">
+                {f.totalJobsCompleted} job{f.totalJobsCompleted !== 1 ? "s" : ""} completed
+              </span>
+            )}
+            <span className="text-xs text-primary font-medium group-hover:underline">
+              View Profile →
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -16,6 +16,7 @@ import Reviews from "@/pages/reviews";
 import Bids from "@/pages/bids";
 import NotFoundPage from "@/pages/not-found";
 import FindFreelancers from "@/pages/find-freelancers";
+import FreelancerProfile from "@/pages/freelancer-profile";
 
 function DashboardRedirect() {
   const { currentRole, isAuthenticated } = useAppStore();
@@ -58,21 +59,36 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public Routes */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+
+        {/* Protected Routes */}
         <Route path="/dashboard" element={<DashboardRedirect />} />
         <Route path="/dashboard/client" element={<ClientDashboard />} />
         <Route path="/dashboard/freelancer" element={<FreelancerDashboard />} />
+        
+        {/* Job Routes */}
         <Route path="/projects" element={<BrowseProjects />} />
         <Route path="/tracking" element={<ProjectTracking />} />
         <Route path="/post-project" element={<PostProject />} />
         <Route path="/submit-proposal" element={<SubmitProposal />} />
-        <Route path="/messages" element={<Messages />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/reviews" element={<Reviews />} />
         <Route path="/bids" element={<Bids />} />
+        
+        {/* Freelancer Routes */}
         <Route path="/freelancers" element={<FindFreelancers />} />
+        <Route path="/freelancer/:profileId" element={<FreelancerProfile />} /> {/* New Route */}
+        
+        {/* Contract & Messages */}
+        <Route path="/contracts" element={<ProjectTracking />} />
+        <Route path="/messages" element={<Messages />} />
+        
+        {/* Profile & Reviews */}
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile/reviews" element={<Reviews />} />
+
+        {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
