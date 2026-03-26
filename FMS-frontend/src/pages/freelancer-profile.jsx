@@ -1,17 +1,16 @@
-// src/pages/freelancer-profile.jsx
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { SkillTag } from "@/components/ui/skill-tag";
-// import { StarRating } from "@/components/ui/star-rating";
 import {
   MapPin, Star, Briefcase, DollarSign, Globe, Github, Linkedin,
-  MessageSquare, Calendar, Award, CheckCircle, ArrowLeft
+  MessageSquare, CheckCircle, ArrowLeft, Download, FileText, Image as ImageIcon,
 } from "lucide-react";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useAppStore } from "@/store/use-app-store";
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getFreelancerProfileById } from "@/api/profile";
-import { getChatRooms, connectWS, disconnectWS, sendWSMessage, isWSConnected } from "@/api/messages";
+import { getChatRooms, connectWS, sendWSMessage, isWSConnected } from "@/api/messages";
+import { getPortfolioFiles, downloadFile, formatFileSize, getFileIcon } from "@/api/files";
 import { useContracts } from "@/hooks/use-contracts";
 
 export default function FreelancerProfile() {
@@ -19,36 +18,37 @@ export default function FreelancerProfile() {
   const navigate = useNavigate();
   const { user, currentRole } = useAppStore();
   const { data: contracts = [] } = useContracts();
-  
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
+  const [profile, setProfile]             = useState(null);
+  const [loading, setLoading]             = useState(true);
+  const [error, setError]                 = useState("");
+  const [portfolioFiles, setPortfolioFiles] = useState([]);
   const [showMessageModal, setShowMessageModal] = useState(false);
-  const [messageDraft, setMessageDraft] = useState("");
+  const [messageDraft, setMessageDraft]   = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
-  const [messageError, setMessageError] = useState("");
-  const [existingRoom, setExistingRoom] = useState(null);
+  const [messageError, setMessageError]   = useState("");
+  const [existingRoom, setExistingRoom]   = useState(null);
+  const [downloadingResume, setDownloadingResume] = useState(false);
+  const [resumeError, setResumeError]     = useState("");
 
   useEffect(() => {
-    if (!profileId) {
-      setError("Profile ID is required");
-      setLoading(false);
-      return;
-    }
-
+    if (!profileId) { setError("Profile ID is required"); setLoading(false); return; }
     setLoading(true);
     getFreelancerProfileById(profileId)
-      .then((data) => {
-        setProfile(data);
-        setError("");
-      })
-      .catch((err) => {
-        setError(err.message || "Failed to load profile");
-      })
+      .then((data) => { setProfile(data); setError(""); })
+      .catch((err) => setError(err.message || "Failed to load profile"))
       .finally(() => setLoading(false));
   }, [profileId]);
 
-  // Check for existing chat room when user clicks message
+  // Load public portfolio files
+  useEffect(() => {
+    if (!profile?.userId) return;
+    getPortfolioFiles(profile.userId)
+      .then((files) => setPortfolioFiles(Array.isArray(files) ? files : []))
+      .catch(() => {});
+  }, [profile?.userId]);
+
+  // Check for existing chat room
   useEffect(() => {
     if (showMessageModal && user?.id && profile?.userId) {
       getChatRooms()
@@ -66,22 +66,17 @@ export default function FreelancerProfile() {
 
   const handleSendMessage = async () => {
     if (!messageDraft.trim()) return;
-    
     setSendingMessage(true);
     setMessageError("");
-    
     try {
       if (existingRoom) {
-        // Send to existing contract
         connectWS(user.id);
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         sendWSMessage(existingRoom.contractId, messageDraft.trim());
       } else {
-        // No existing contract - show message
         setMessageError("You can only message freelancers you have a contract with.");
         return;
       }
-      
       setShowMessageModal(false);
       setMessageDraft("");
       navigate("/messages");
@@ -91,6 +86,23 @@ export default function FreelancerProfile() {
       setSendingMessage(false);
     }
   };
+
+  // Download freelancer's resume (clients only)
+  async function handleDownloadResume() {
+    if (!profile?.resumeFileId) {
+      setResumeError("No resume available for this freelancer.");
+      return;
+    }
+    setDownloadingResume(true);
+    setResumeError("");
+    try {
+      await downloadFile(profile.resumeFileId, `${profile.fullName || "freelancer"}-resume.pdf`);
+    } catch (err) {
+      setResumeError("Could not download resume: " + (err.message || ""));
+    } finally {
+      setDownloadingResume(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -132,11 +144,7 @@ export default function FreelancerProfile() {
   return (
     <DashboardLayout>
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-ink-2 hover:text-ink transition-colors"
-        >
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-ink-2 hover:text-ink transition-colors">
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Back</span>
         </button>
@@ -144,12 +152,10 @@ export default function FreelancerProfile() {
         {/* Profile Header */}
         <div className="bg-gradient-to-br from-surface to-background border border-border rounded-2xl p-8">
           <div className="flex flex-col md:flex-row gap-6 items-start">
-            {/* Avatar */}
             <div className="w-28 h-28 rounded-2xl bg-primary flex items-center justify-center text-3xl font-bold text-white shadow-lg">
               {initials}
             </div>
 
-            {/* Info */}
             <div className="flex-1 space-y-3">
               <div>
                 <h1 className="text-2xl font-bold text-ink">
@@ -162,30 +168,20 @@ export default function FreelancerProfile() {
 
               <div className="flex flex-wrap gap-4 text-sm text-ink-2">
                 {profile.location && (
-                  <div className="flex items-center gap-1.5">
-                    <MapPin className="w-4 h-4" />
-                    <span>{profile.location}</span>
-                  </div>
+                  <div className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /><span>{profile.location}</span></div>
                 )}
                 {profile.hourlyRate && (
-                  <div className="flex items-center gap-1.5">
-                    <DollarSign className="w-4 h-4" />
-                    <span>{formatCurrency(profile.hourlyRate)}/hr</span>
-                  </div>
+                  <div className="flex items-center gap-1.5"><DollarSign className="w-4 h-4" /><span>{formatCurrency(profile.hourlyRate)}/hr</span></div>
                 )}
                 {profile.yearsOfExperience != null && (
-                  <div className="flex items-center gap-1.5">
-                    <Briefcase className="w-4 h-4" />
-                    <span>{profile.yearsOfExperience} years experience</span>
-                  </div>
+                  <div className="flex items-center gap-1.5"><Briefcase className="w-4 h-4" /><span>{profile.yearsOfExperience} years experience</span></div>
                 )}
               </div>
 
-              {/* Rating & Stats */}
               <div className="flex flex-wrap gap-4 pt-2">
                 {profile.avgRating != null && (
                   <div className="flex items-center gap-1.5 bg-surface px-3 py-1.5 rounded-lg">
-                    <Star className="w-4 h-4 text-warning-fill" />
+                    <Star className="w-4 h-4 text-warning" />
                     <span className="font-semibold text-ink">{Number(profile.avgRating).toFixed(1)}</span>
                     {profile.totalReviews > 0 && (
                       <span className="text-ink-3">({profile.totalReviews} reviews)</span>
@@ -205,13 +201,13 @@ export default function FreelancerProfile() {
                     profile.availability === "PART_TIME" && "bg-warning-bg text-warning-text",
                     profile.availability === "NOT_AVAILABLE" && "bg-danger-bg text-danger-text"
                   )}>
-                    {profile.availability.replace("_", " ")}
+                    {profile.availability.replace(/_/g, " ")}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Client action buttons */}
             {isClient && (
               <div className="flex flex-col gap-2">
                 <button
@@ -227,9 +223,26 @@ export default function FreelancerProfile() {
                   <MessageSquare className="w-4 h-4" />
                   {hasContract ? "Send Message" : "No Active Contract"}
                 </button>
+
+                {/* Resume download button */}
+                <button
+                  onClick={handleDownloadResume}
+                  disabled={downloadingResume || !profile?.resumeFileId}
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl py-2.5 px-5 text-sm font-semibold transition-all",
+                    profile?.resumeFileId
+                      ? "border border-primary text-primary hover:bg-primary-bg"
+                      : "border border-border text-ink-3 cursor-not-allowed opacity-50"
+                  )}
+                >
+                  <Download className="w-4 h-4" />
+                  {downloadingResume ? "Downloading…" : profile?.resumeFileId ? "Download Resume" : "No Resume"}
+                </button>
+                {resumeError && <p className="text-[12px] text-danger">{resumeError}</p>}
+
                 {!hasContract && (
                   <p className="text-xs text-ink-3 text-center">
-                    You can only message freelancers you have a contract with
+                    You need an active contract to message
                   </p>
                 )}
               </div>
@@ -272,57 +285,69 @@ export default function FreelancerProfile() {
           </div>
         )}
 
+        {/* Portfolio files */}
+        {portfolioFiles.length > 0 && (
+          <div className="bg-surface border border-border rounded-2xl p-6">
+            <h2 className="text-lg font-semibold text-ink mb-4 flex items-center gap-2">
+              <ImageIcon className="w-5 h-5 text-primary" /> Portfolio
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {portfolioFiles.map((f) => {
+                const fileId = f.fileId || f.id;
+                return (
+                  <button
+                    key={fileId}
+                    onClick={() => downloadFile(fileId, f.fileName || f.originalFileName)}
+                    className="flex items-center gap-3 bg-background border border-border rounded-xl px-4 py-3 hover:border-primary hover:bg-primary-bg transition-all text-left"
+                  >
+                    <span className="text-xl">{getFileIcon(f.fileName || f.originalFileName)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] text-ink font-medium truncate">{f.fileName || f.originalFileName || "File"}</p>
+                      {f.fileSize != null && <p className="text-[11px] text-ink-3">{formatFileSize(f.fileSize)}</p>}
+                    </div>
+                    <Download className="w-4 h-4 text-ink-3 flex-shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Portfolio Links */}
         {(profile.portfolioUrl || profile.linkedinUrl || profile.githubUrl) && (
           <div className="bg-surface border border-border rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-ink mb-4">Portfolio & Links</h2>
+            <h2 className="text-lg font-semibold text-ink mb-4">Links</h2>
             <div className="flex flex-wrap gap-3">
               {profile.portfolioUrl && (
-                <a
-                  href={profile.portfolioUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-background border border-border px-4 py-2 rounded-lg text-sm text-ink hover:border-primary transition-colors"
-                >
-                  <Globe className="w-4 h-4" />
-                  Portfolio
+                <a href={profile.portfolioUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-background border border-border px-4 py-2 rounded-lg text-sm text-ink hover:border-primary transition-colors">
+                  <Globe className="w-4 h-4" /> Portfolio
                 </a>
               )}
               {profile.linkedinUrl && (
-                <a
-                  href={profile.linkedinUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-background border border-border px-4 py-2 rounded-lg text-sm text-ink hover:border-primary transition-colors"
-                >
-                  <Linkedin className="w-4 h-4" />
-                  LinkedIn
+                <a href={profile.linkedinUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-background border border-border px-4 py-2 rounded-lg text-sm text-ink hover:border-primary transition-colors">
+                  <Linkedin className="w-4 h-4" /> LinkedIn
                 </a>
               )}
               {profile.githubUrl && (
-                <a
-                  href={profile.githubUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 bg-background border border-border px-4 py-2 rounded-lg text-sm text-ink hover:border-primary transition-colors"
-                >
-                  <Github className="w-4 h-4" />
-                  GitHub
+                <a href={profile.githubUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-background border border-border px-4 py-2 rounded-lg text-sm text-ink hover:border-primary transition-colors">
+                  <Github className="w-4 h-4" /> GitHub
                 </a>
               )}
             </div>
           </div>
         )}
 
-        {/* Reviews */}
+        {/* Reviews summary */}
         {profile.totalReviews > 0 && (
           <div className="bg-surface border border-border rounded-2xl p-6">
-            <h2 className="text-lg font-semibold text-ink mb-4">Reviews</h2>
+            <h2 className="text-lg font-semibold text-ink mb-3">Reviews</h2>
             <p className="text-ink-2 text-sm">
-              {profile.totalReviews} review{profile.totalReviews !== 1 ? "s" : ""} with{" "}
-              <span className="font-semibold text-ink">{Number(profile.avgRating).toFixed(1)}</span> average rating
+              {profile.totalReviews} review{profile.totalReviews !== 1 ? "s" : ""} ·{" "}
+              <span className="font-semibold text-ink">{Number(profile.avgRating).toFixed(1)}</span> avg rating
             </p>
-            {/* Reviews can be expanded later */}
           </div>
         )}
       </div>
@@ -332,7 +357,7 @@ export default function FreelancerProfile() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
           <div className="bg-background border border-border rounded-2xl w-full max-w-md p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-ink mb-4">Send Message</h3>
-            
+
             {existingRoom ? (
               <>
                 <textarea
@@ -342,20 +367,16 @@ export default function FreelancerProfile() {
                   rows={4}
                   className="w-full border-[1.5px] border-border rounded-xl px-4 py-3 text-sm text-ink bg-surface focus:outline-none focus:border-primary resize-none"
                 />
-                {messageError && (
-                  <p className="text-sm text-danger mt-2">{messageError}</p>
-                )}
+                {messageError && <p className="text-sm text-danger mt-2">{messageError}</p>}
                 <div className="flex gap-3 mt-4">
-                  <button
-                    onClick={() => setShowMessageModal(false)}
-                    className="flex-1 border border-border rounded-xl py-2.5 text-sm font-medium text-ink hover:bg-surface transition-colors"
-                  >
+                  <button onClick={() => setShowMessageModal(false)}
+                    className="flex-1 border border-border rounded-xl py-2.5 text-sm font-medium text-ink hover:bg-surface transition-colors">
                     Cancel
                   </button>
                   <button
                     onClick={handleSendMessage}
                     disabled={sendingMessage || !messageDraft.trim()}
-                    className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl py-2.5 text-sm font-semibold transition-all"
+                    className="flex-1 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-semibold transition-all"
                   >
                     {sendingMessage ? "Sending..." : "Send Message"}
                   </button>
@@ -367,10 +388,8 @@ export default function FreelancerProfile() {
                 <p className="text-ink-2 mb-4">
                   You need an active contract with this freelancer to send messages.
                 </p>
-                <button
-                  onClick={() => setShowMessageModal(false)}
-                  className="bg-primary hover:bg-primary-dark text-white rounded-xl py-2.5 px-6 text-sm font-semibold transition-all"
-                >
+                <button onClick={() => setShowMessageModal(false)}
+                  className="bg-primary hover:bg-primary-dark text-white rounded-xl py-2.5 px-6 text-sm font-semibold transition-all">
                   Close
                 </button>
               </div>

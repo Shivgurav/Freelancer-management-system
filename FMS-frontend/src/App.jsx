@@ -17,6 +17,8 @@ import Bids from "@/pages/bids";
 import NotFoundPage from "@/pages/not-found";
 import FindFreelancers from "@/pages/find-freelancers";
 import FreelancerProfile from "@/pages/freelancer-profile";
+import NotificationsPage from "@/pages/notifications";
+import ContractFiles from "@/pages/contract-files";
 
 function DashboardRedirect() {
   const { currentRole, isAuthenticated } = useAppStore();
@@ -24,7 +26,6 @@ function DashboardRedirect() {
   return <Navigate to={`/dashboard/${currentRole}`} replace />;
 }
 
-// Shown while initAuth is running — prevents the login flash
 function InitSpinner() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -43,7 +44,6 @@ export default function App() {
   useEffect(() => {
     initAuth()
       .then(() => {
-        // Only load notifications if we are actually authenticated
         if (useAppStore.getState().isAuthenticated) {
           loadNotifications();
         }
@@ -53,40 +53,42 @@ export default function App() {
       });
   }, []);
 
-  // Block rendering until we know the auth state — eliminates the flash
   if (initialising) return <InitSpinner />;
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Routes */}
+        {/* Public */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Protected Routes */}
+        {/* Dashboard */}
         <Route path="/dashboard" element={<DashboardRedirect />} />
         <Route path="/dashboard/client" element={<ClientDashboard />} />
         <Route path="/dashboard/freelancer" element={<FreelancerDashboard />} />
-        
+
         {/* Job Routes */}
         <Route path="/projects" element={<BrowseProjects />} />
         <Route path="/tracking" element={<ProjectTracking />} />
         <Route path="/post-project" element={<PostProject />} />
         <Route path="/submit-proposal" element={<SubmitProposal />} />
         <Route path="/bids" element={<Bids />} />
-        
+
         {/* Freelancer Routes */}
         <Route path="/freelancers" element={<FindFreelancers />} />
-        <Route path="/freelancer/:profileId" element={<FreelancerProfile />} /> {/* New Route */}
-        
+        <Route path="/freelancer/:profileId" element={<FreelancerProfile />} />
+
         {/* Contract & Messages */}
         <Route path="/contracts" element={<ProjectTracking />} />
+        <Route path="/contract-files" element={<ContractFiles />} />
         <Route path="/messages" element={<Messages />} />
-        
-        {/* Profile & Reviews */}
+
+        {/* Profile, Reviews, Notifications */}
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/reviews" element={<Reviews />} />
+        <Route path="/reviews" element={<Reviews />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
 
         {/* 404 */}
         <Route path="*" element={<NotFoundPage />} />

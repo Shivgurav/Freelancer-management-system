@@ -2,13 +2,10 @@ import { apiFetch } from "./config";
 
 // ── Freelancer ──────────────────────────────────────────────────────────────
 
-// GET /api/profiles/freelancer/me
 export function getMyFreelancerProfile() {
   return apiFetch("/profiles/freelancer/me");
 }
 
-// PUT /api/profiles/freelancer/me
-// body: { title, bio, hourlyRate, location, yearsOfExperience, portfolioUrl, linkedinUrl, githubUrl }
 export function updateFreelancerProfile(updates) {
   return apiFetch("/profiles/freelancer/me", {
     method: "PUT",
@@ -16,12 +13,12 @@ export function updateFreelancerProfile(updates) {
   });
 }
 
-// GET /api/profiles/freelancer/{profileId}
 export function getFreelancerProfileById(profileId) {
   return apiFetch(`/profiles/freelancer/${profileId}`);
 }
 
-// POST /api/profiles/freelancer/me/skills  — body: { name, category, proficiencyLevel }
+// ── Skills ─────────────────────────────────────────────────────────────────
+
 export function addSkill(skill) {
   return apiFetch("/profiles/freelancer/me/skills", {
     method: "POST",
@@ -29,25 +26,24 @@ export function addSkill(skill) {
   });
 }
 
-// DELETE /api/profiles/freelancer/me/skills/{skillId}
 export function removeSkill(skillId) {
   return apiFetch(`/profiles/freelancer/me/skills/${skillId}`, { method: "DELETE" });
 }
 
-// GET /api/profiles/skills
 export function getAllSkills() {
   return apiFetch("/profiles/skills");
 }
 
+export function searchSkills(keyword) {
+  return apiFetch(`/profiles/skills/search?keyword=${encodeURIComponent(keyword)}`);
+}
+
 // ── Client ──────────────────────────────────────────────────────────────────
 
-// GET /api/profiles/client/me
 export function getMyClientProfile() {
   return apiFetch("/profiles/client/me");
 }
 
-// PUT /api/profiles/client/me
-// body: { firstName, lastName, companyName, description, industry, companySize, location, websiteUrl, linkedinUrl }
 export function updateClientProfile(updates) {
   return apiFetch("/profiles/client/me", {
     method: "PUT",
@@ -55,12 +51,12 @@ export function updateClientProfile(updates) {
   });
 }
 
-// GET /api/profiles/client/{profileId}
 export function getClientProfileById(profileId) {
   return apiFetch(`/profiles/client/${profileId}`);
 }
 
-// Generic helpers used by the store (role-aware)
+// ── Generic helpers ─────────────────────────────────────────────────────────
+
 export function getMyProfile(role) {
   if (role === "FREELANCER" || role === "freelancer") return getMyFreelancerProfile();
   return getMyClientProfile();
@@ -71,13 +67,8 @@ export function updateMyProfile(updates, role) {
   return updateClientProfile(updates);
 }
 
-// ── Profile Init (called by frontend after registration) ────────────────────
-// These mirror the internal endpoints the auth service was supposed to call.
-// The gateway allows them because the JWT filter injects X-User-Id from the token.
-// Note: the controller reads X-User-Id from the header (injected by gateway),
-// so no extra header needed — apiFetch sends the Bearer token and gateway injects it.
+// ── Profile Init ─────────────────────────────────────────────────────────────
 
-// POST /api/profiles/freelancer/init
 export function initFreelancerProfile(firstName, lastName) {
   return apiFetch("/profiles/freelancer/init", {
     method: "POST",
@@ -85,7 +76,6 @@ export function initFreelancerProfile(firstName, lastName) {
   });
 }
 
-// POST /api/profiles/client/init
 export function initClientProfile(firstName, lastName) {
   return apiFetch("/profiles/client/init", {
     method: "POST",

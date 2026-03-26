@@ -6,9 +6,7 @@ import { submitReview, getMyReviews, getReviewsForUser } from "@/api/reviews";
 import { getUserById } from "@/api/auth";
 import { useContracts } from "@/hooks/use-contracts";
 
-const DEFAULT_TAGS = ["On time", "Great communication", "Quality work", "Would rehire"];
-
-// Enrich a list of reviews with reviewer/reviewee names via auth service
+// Enrich reviews with names from auth service
 async function resolveName(userId) {
   if (!userId) return null;
   try {
@@ -27,16 +25,14 @@ async function enrichReviews(list) {
       ]);
       return {
         ...r,
-        revieweeName: revieweeName || `User #${r.revieweeId?.slice(0, 8) || "?"}`,
-        reviewerName: reviewerName || `User #${r.reviewerId?.slice(0, 8) || "?"}`,
+        revieweeName: revieweeName || `User #${String(r.revieweeId || "").slice(0, 8) || "?"}`,
+        reviewerName: reviewerName || `User #${String(r.reviewerId || "").slice(0, 8) || "?"}`,
       };
     })
   );
 }
 
-// A single review card — reused in both sections
 function ReviewCard({ review, perspective }) {
-  // perspective: "sent" (I wrote this) | "received" (someone wrote this about me)
   const displayName =
     perspective === "sent"
       ? (review.revieweeName || "Unknown")
@@ -68,15 +64,10 @@ function ReviewCard({ review, perspective }) {
       {review.comment && (
         <p className="text-[12.5px] text-ink-2 leading-relaxed">{review.comment}</p>
       )}
-      {review.tags && review.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {review.tags.map((tag) => (
-            <span key={tag} className="bg-primary-bg text-primary-dark text-[11px] px-2 py-0.5 rounded-full font-medium">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
+      <div className="mt-2 text-[11px] text-ink-3">
+        Role: {review.reviewerRole === "CLIENT" ? "Client" : "Freelancer"}
+        {perspective === "received" && <span className="ml-1">reviewed you</span>}
+      </div>
     </div>
   );
 }
@@ -85,31 +76,23 @@ export default function Reviews() {
   const { user, notify, currentRole } = useAppStore();
   const { data: contracts = [] } = useContracts();
 
-  // Reviews I wrote
-  const [sentReviews, setSentReviews] = useState([]);
-  const [sentLoading, setSentLoading] = useState(true);
-
-  // Reviews I received
+  const [sentReviews, setSentReviews]         = useState([]);
+  const [sentLoading, setSentLoading]         = useState(true);
   const [receivedReviews, setReceivedReviews] = useState([]);
   const [receivedLoading, setReceivedLoading] = useState(true);
+  const [reviewsError, setReviewsError]       = useState("");
+  const [activeTab, setActiveTab]             = useState("received");
 
-  const [reviewsError, setReviewsError] = useState("");
-  const [activeTab, setActiveTab] = useState("received"); // default to received
-
-  const [rating, setRating] = useState(4);
-  const [hoveredRating, setHoveredRating] = useState(0);
-  const [reviewText, setReviewText] = useState("");
-  const [availableTags, setAvailableTags] = useState([...DEFAULT_TAGS]);
-  const [selectedTags, setSelectedTags] = useState(new Set(["On time", "Great communication"]));
-  const [newTag, setNewTag] = useState("");
+  const [rating, setRating]                   = useState(4);
+  const [hoveredRating, setHoveredRating]     = useState(0);
+  const [reviewText, setReviewText]           = useState("");
   const [selectedContractId, setSelectedContractId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting]           = useState(false);
+  const [submitted, setSubmitted]             = useState(false);
+  const [submitError, setSubmitError]         = useState("");
 
   const isClient = currentRole === "client";
 
-  // Load reviews I've written
   useEffect(() => {
     setSentLoading(true);
     getMyReviews()
@@ -126,7 +109,6 @@ export default function Reviews() {
       .finally(() => setSentLoading(false));
   }, []);
 
-  // Load reviews I've received (by my user ID)
   useEffect(() => {
     if (!user?.id) { setReceivedLoading(false); return; }
     setReceivedLoading(true);
@@ -140,33 +122,20 @@ export default function Reviews() {
       .finally(() => setReceivedLoading(false));
   }, [user?.id]);
 
+  // Completed contracts only — can only review completed work
   const completedContracts = contracts.filter(
     (c) => (c.status || "").toUpperCase() === "COMPLETED"
   );
   const selectedContract =
-    completedContracts.find((c) => c.id === selectedContractId) || completedContracts[0];
-
-  function toggleTag(tag) {
-    setSelectedTags((prev) => {
-      const next = new Set(prev);
-      next.has(tag) ? next.delete(tag) : next.add(tag);
-      return next;
-    });
-  }
-
-  function addCustomTag() {
-    const t = newTag.trim();
-    if (!t) return;
-    setAvailableTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
-    setSelectedTags((prev) => new Set([...prev, t]));
-    setNewTag("");
-  }
+    completedContracts.find((c) => c.id === selectedContractId) ||
+    (completedContracts.length > 0 ? completedContracts[0] : null);
 
   async function handleSubmitReview() {
     if (!reviewText.trim() || !selectedContract) return;
     setSubmitting(true);
     setSubmitError("");
     try {
+      // revieweeId = the other party on the contract
       const revieweeId = isClient
         ? selectedContract.freelancerId
         : selectedContract.clientId;
@@ -176,35 +145,32 @@ export default function Reviews() {
         contractId: selectedContract.id,
         revieweeId,
         rating,
-        comment:
-          reviewText.trim() +
-          (selectedTags.size ? `\n\nTags: ${[...selectedTags].join(", ")}` : ""),
+        // Backend ReviewRequest has no tags field — embed tags in comment
+        comment: reviewText.trim(),
       });
 
       const optimisticName = isClient
         ? selectedContract.freelancerName || "Freelancer"
         : selectedContract.clientName || "Client";
 
-      const newReview = {
+      setSentReviews((prev) => [{
         id: result?.id || Date.now(),
         contractId: selectedContract.id,
         revieweeId,
         reviewerId: user?.id,
+        reviewerRole: isClient ? "CLIENT" : "FREELANCER",
         rating,
         comment: reviewText.trim(),
-        tags: [...selectedTags],
         createdAt: new Date().toISOString(),
         revieweeName: optimisticName,
         reviewerName: user?.name || "Me",
         jobTitle: selectedContract.jobTitle,
-      };
+      }, ...prev]);
 
-      setSentReviews((prev) => [newReview, ...prev]);
       setSubmitted(true);
       setActiveTab("sent");
       setReviewText("");
       setRating(4);
-      setSelectedTags(new Set(["On time", "Great communication"]));
       notify({ type: "review", title: "Review submitted", message: "Your review was posted." });
     } catch (err) {
       setSubmitError(err.message);
@@ -228,7 +194,7 @@ export default function Reviews() {
           </div>
         )}
 
-        {/* ── Submit Review Form ──────────────────────────────────────── */}
+        {/* Submit Review Form */}
         {completedContracts.length > 0 ? (
           <div className="bg-surface border border-border rounded-[14px] p-6 mb-5 shadow-sm">
             <h2 className="font-display text-[17px] font-semibold text-ink mb-5">Rate Your Experience</h2>
@@ -244,9 +210,7 @@ export default function Reviews() {
                   {completedContracts.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.jobTitle || `Contract #${c.id?.slice(0, 8)}`}
-                      {isClient
-                        ? ` — ${c.freelancerName || "Freelancer"}`
-                        : ` — ${c.clientName || "Client"}`}
+                      {isClient ? ` — ${c.freelancerName || "Freelancer"}` : ` — ${c.clientName || "Client"}`}
                     </option>
                   ))}
                 </select>
@@ -263,9 +227,7 @@ export default function Reviews() {
                 </div>
                 <div>
                   <div className="text-[14px] font-semibold text-ink">
-                    {isClient
-                      ? selectedContract.freelancerName || "Unknown"
-                      : selectedContract.clientName || "Unknown"}
+                    {isClient ? selectedContract.freelancerName || "Unknown" : selectedContract.clientName || "Unknown"}
                   </div>
                   <div className="text-[12px] text-ink-3 mt-0.5">
                     {selectedContract.jobTitle || "Contract"} · Completed
@@ -276,7 +238,7 @@ export default function Reviews() {
 
             <div className="mb-5">
               <label className="block text-[13px] font-medium text-ink-2 mb-2.5">Overall Rating</label>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 items-center">
                 {[1, 2, 3, 4, 5].map((s) => (
                   <button
                     key={s}
@@ -295,7 +257,7 @@ export default function Reviews() {
                     />
                   </button>
                 ))}
-                <span className="ml-2 text-[13px] text-ink-3 self-center">
+                <span className="ml-2 text-[13px] text-ink-3">
                   {["", "Poor", "Fair", "Good", "Very Good", "Excellent"][rating]}
                 </span>
               </div>
@@ -312,54 +274,14 @@ export default function Reviews() {
               />
             </div>
 
-            <div className="mb-5">
-              <label className="block text-[13px] font-medium text-ink-2 mb-2.5">Quick Tags</label>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {availableTags.map((tag) => {
-                  const checked = selectedTags.has(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTag(tag)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[13px] font-medium transition-colors ${
-                        checked
-                          ? "bg-primary-bg border border-primary-light text-primary-dark"
-                          : "bg-background border border-border text-ink-3 hover:bg-background/60"
-                      }`}
-                    >
-                      <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0 ${checked ? "bg-primary" : "bg-border"}`}>
-                        {checked && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                      </div>
-                      {tag}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  value={newTag}
-                  onChange={(e) => setNewTag(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addCustomTag())}
-                  placeholder="Add a custom tag..."
-                  className="flex-1 border-[1.5px] border-border rounded-lg px-3.5 py-2 text-[13px] text-ink bg-background focus:outline-none focus:border-primary transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={addCustomTag}
-                  className="border border-border rounded-lg px-4 py-2 text-[13px] font-semibold text-ink-2 hover:bg-background transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-            </div>
-
             <button
               onClick={handleSubmitReview}
               disabled={submitting || !reviewText.trim() || !selectedContract}
               className="bg-primary hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl py-3 px-6 text-sm font-semibold transition-all hover:shadow-md flex items-center gap-1.5"
             >
-              {submitting ? "Submitting..." : <><Star className="w-3.5 h-3.5 fill-white" /> Submit Review</>}
+              {submitting
+                ? "Submitting..."
+                : <><Star className="w-3.5 h-3.5 fill-white" /> Submit Review</>}
             </button>
           </div>
         ) : (
@@ -372,9 +294,8 @@ export default function Reviews() {
           </div>
         )}
 
-        {/* ── Review History Tabs ─────────────────────────────────────── */}
+        {/* Review History Tabs */}
         <div className="bg-surface border border-border rounded-[14px] shadow-sm overflow-hidden">
-          {/* Tab headers */}
           <div className="flex border-b border-border">
             <button
               onClick={() => setActiveTab("received")}
@@ -411,7 +332,6 @@ export default function Reviews() {
           </div>
 
           <div className="p-5">
-            {/* Received tab */}
             {activeTab === "received" && (
               <>
                 {receivedLoading ? (
@@ -432,7 +352,6 @@ export default function Reviews() {
               </>
             )}
 
-            {/* Sent / Written tab */}
             {activeTab === "sent" && (
               <>
                 {sentLoading ? (

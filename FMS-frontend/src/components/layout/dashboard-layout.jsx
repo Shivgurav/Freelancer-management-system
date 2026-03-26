@@ -3,7 +3,7 @@ import { useAppStore } from "@/store/use-app-store";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, FolderKanban, FileText, MessageSquare,
-  User, Star, Search, Plus, Bell, LogOut, Users,
+  User, Star, Search, Plus, Bell, LogOut, Users, Folder,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 
@@ -11,8 +11,8 @@ export function DashboardLayout({ children, title }) {
   const location = useLocation();
   const navigate = useNavigate();
   const {
-    user, isAuthenticated, currentRole, setRole,
-    unreadMessages, unreadNotifications, notifications,
+    user, isAuthenticated, currentRole,
+    unreadNotifications, notifications,
     markAllNotificationsRead, logout,
   } = useAppStore();
 
@@ -23,10 +23,10 @@ export function DashboardLayout({ children, title }) {
   }, [isAuthenticated]);
 
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifOpen, setNotifOpen]     = useState(false);
   const profileRef = useRef(null);
-  const notifRef = useRef(null);
-  const isClient = currentRole === "client";
+  const notifRef   = useRef(null);
+  const isClient   = currentRole === "client";
 
   useEffect(() => {
     function handleClick(e) {
@@ -47,19 +47,21 @@ export function DashboardLayout({ children, title }) {
     {
       label: "Main",
       items: [
-        { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/client" },
-        { icon: Plus, label: "Post Project", href: "/post-project" },
-        { icon: Users, label: "Find Freelancers", href: "/freelancers" },
-        { icon: FolderKanban, label: "My Contracts", href: "/tracking" },
-        { icon: FileText, label: "Received Bids", href: "/bids" },
-        { icon: MessageSquare, label: "Messages", href: "/messages" },
+        { icon: LayoutDashboard, label: "Dashboard",      href: "/dashboard/client" },
+        { icon: Plus,            label: "Post Project",    href: "/post-project" },
+        { icon: Users,           label: "Find Freelancers",href: "/freelancers" },
+        { icon: FolderKanban,    label: "My Contracts",    href: "/tracking" },
+        { icon: Folder,          label: "Contract Files",  href: "/contract-files" },
+        { icon: FileText,        label: "Received Bids",   href: "/bids" },
+        { icon: MessageSquare,   label: "Messages",        href: "/messages" },
       ],
     },
     {
       label: "Account",
       items: [
-        { icon: User, label: "My Profile", href: "/profile" },
-        { icon: Star, label: "Reviews", href: "/reviews" },
+        { icon: User,  label: "My Profile", href: "/profile" },
+        { icon: Star,  label: "Reviews",    href: "/reviews" },
+        { icon: Bell,  label: "Notifications", href: "/notifications", badge: unreadNotifications },
       ],
     },
   ];
@@ -68,18 +70,20 @@ export function DashboardLayout({ children, title }) {
     {
       label: "Main",
       items: [
-        { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/freelancer" },
-        { icon: Search, label: "Browse Projects", href: "/projects" },
-        { icon: FileText, label: "My Bids", href: "/bids" },
-        { icon: FolderKanban, label: "My Contracts", href: "/tracking" },
-        { icon: MessageSquare, label: "Messages", href: "/messages" },
+        { icon: LayoutDashboard, label: "Dashboard",     href: "/dashboard/freelancer" },
+        { icon: Search,          label: "Browse Projects",href: "/projects" },
+        { icon: FileText,        label: "My Bids",        href: "/bids" },
+        { icon: FolderKanban,    label: "My Contracts",   href: "/tracking" },
+        { icon: Folder,          label: "Contract Files", href: "/contract-files" },
+        { icon: MessageSquare,   label: "Messages",       href: "/messages" },
       ],
     },
     {
       label: "Account",
       items: [
         { icon: User, label: "My Profile", href: "/profile" },
-        { icon: Star, label: "Reviews", href: "/reviews" },
+        { icon: Star, label: "Reviews",    href: "/reviews" },
+        { icon: Bell, label: "Notifications", href: "/notifications", badge: unreadNotifications },
       ],
     },
   ];
@@ -114,14 +118,16 @@ export function DashboardLayout({ children, title }) {
                     to={item.href}
                     className={cn(
                       "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] transition-all relative",
-                      active ? "bg-primary-bg text-primary-dark font-semibold" : "text-ink-2 hover:bg-background hover:text-ink"
+                      active
+                        ? "bg-primary-bg text-primary-dark font-semibold"
+                        : "text-ink-2 hover:bg-background hover:text-ink"
                     )}
                   >
                     <Icon className="w-4 h-4 flex-shrink-0" />
                     <span>{item.label}</span>
                     {item.badge > 0 && (
                       <span className="ml-auto bg-primary text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                        {item.badge}
+                        {item.badge > 9 ? "9+" : item.badge}
                       </span>
                     )}
                   </Link>
@@ -145,7 +151,7 @@ export function DashboardLayout({ children, title }) {
         </div>
       </aside>
 
-      {/* Main content area */}
+      {/* Main content */}
       <main className="flex-1 flex flex-col overflow-hidden">
         {/* Top header */}
         <header className="h-14 bg-surface border-b border-border flex items-center justify-between px-6 flex-shrink-0">
@@ -164,10 +170,13 @@ export function DashboardLayout({ children, title }) {
               </Link>
             )}
 
-            {/* Notifications */}
+            {/* Notifications bell */}
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => { setNotifOpen(!notifOpen); if (!notifOpen) markAllNotificationsRead(); }}
+                onClick={() => {
+                  setNotifOpen(!notifOpen);
+                  if (!notifOpen) markAllNotificationsRead();
+                }}
                 className="w-9 h-9 rounded-lg border border-border bg-surface flex items-center justify-center relative hover:bg-background transition-colors"
                 aria-label="Notifications"
               >
@@ -178,18 +187,25 @@ export function DashboardLayout({ children, title }) {
               </button>
 
               {notifOpen && (
-                <div className="absolute right-0 top-12 w-80 bg-surface border border-border rounded-xl shadow-lg py-2 z-50 animate-in fade-in zoom-in-95 duration-150 max-h-96 overflow-y-auto">
-                  <div className="px-4 py-3 border-b border-border">
+                <div className="absolute right-0 top-12 w-80 bg-surface border border-border rounded-xl shadow-lg py-2 z-50 max-h-96 overflow-y-auto">
+                  <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                     <div className="text-[13px] font-semibold text-ink">Notifications</div>
+                    <Link
+                      to="/notifications"
+                      onClick={() => setNotifOpen(false)}
+                      className="text-[11px] text-primary hover:underline"
+                    >
+                      View all
+                    </Link>
                   </div>
                   {notifications.length === 0 ? (
                     <div className="px-4 py-6 text-center text-[13px] text-ink-3">No notifications yet.</div>
                   ) : (
-                    notifications.slice(0, 10).map((n) => (
-                      <div key={n.id} className="px-4 py-3 border-b border-border/50 hover:bg-background transition-colors">
+                    notifications.slice(0, 8).map((n) => (
+                      <div key={n.id} className={`px-4 py-3 border-b border-border/50 hover:bg-background transition-colors ${!n.read ? "bg-primary-bg/20" : ""}`}>
                         <div className="text-[13px] font-medium text-ink">{n.subject || n.title || "Notification"}</div>
-                        {(n.recipientName || n.message) && (
-                          <div className="text-[12px] text-ink-3 mt-0.5">{n.recipientName || n.message}</div>
+                        {(n.body || n.message) && (
+                          <div className="text-[12px] text-ink-3 mt-0.5 line-clamp-2">{n.body || n.message}</div>
                         )}
                       </div>
                     ))
@@ -208,7 +224,7 @@ export function DashboardLayout({ children, title }) {
               </button>
 
               {profileOpen && (
-                <div className="absolute right-0 top-12 w-52 bg-surface border border-border rounded-xl shadow-lg py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 top-12 w-52 bg-surface border border-border rounded-xl shadow-lg py-2 z-50">
                   <div className="px-4 py-3 border-b border-border">
                     <div className="text-[13px] font-semibold text-ink">{user?.name ?? "—"}</div>
                     <div className="text-[11px] text-ink-3">{user?.email || ""}</div>
@@ -225,6 +241,17 @@ export function DashboardLayout({ children, title }) {
                     className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-ink-2 hover:bg-background transition-colors"
                   >
                     <Star className="w-4 h-4" /> Reviews
+                  </button>
+                  <button
+                    onClick={() => { setProfileOpen(false); navigate("/notifications"); }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-ink-2 hover:bg-background transition-colors"
+                  >
+                    <Bell className="w-4 h-4" /> Notifications
+                    {unreadNotifications > 0 && (
+                      <span className="ml-auto bg-primary text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                        {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                      </span>
+                    )}
                   </button>
                   <div className="border-t border-border mt-1 pt-1">
                     <button

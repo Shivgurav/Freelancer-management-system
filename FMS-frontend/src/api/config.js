@@ -1,3 +1,4 @@
+// The gateway URL — all API calls go through it
 const GATEWAY_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api";
 
 function getAccessToken() {
@@ -51,8 +52,6 @@ async function apiFetch(path, options = {}) {
   let res = await fetch(url, { ...options, headers });
 
   if (res.status === 401) {
-    // Don't try to refresh if this IS the login/register/refresh request itself —
-    // that would cause an infinite loop or a redirect mid-login.
     const isAuthEndpoint = path.startsWith("/auth/");
     if (!isAuthEndpoint) {
       try {
@@ -65,7 +64,6 @@ async function apiFetch(path, options = {}) {
         throw new Error("Session expired");
       }
     } else {
-      // Auth endpoint returned 401 — just throw, don't redirect
       let message = "Request failed: 401";
       try { const body = await res.json(); message = body.message || body.error || message; } catch {}
       throw new Error(message);
@@ -89,7 +87,23 @@ async function apiUpload(path, formData) {
   const url = `${GATEWAY_URL}${path}`;
   const token = getAccessToken();
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const res = await fetch(url, { method: "POST", headers, body: formData });
+
+  let res = await fetch(url, { method: "POST", headers, body: formData });
+
+  if (res.status === 401) {
+    try {
+      const newToken = await refreshAccessToken();
+      res = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${newToken}` },
+        body: formData,
+      });
+    } catch {
+      clearTokens();
+      window.location.href = "/login";
+      throw new Error("Session expired");
+    }
+  }
 
   if (!res.ok) {
     let message = `Upload failed: ${res.status}`;

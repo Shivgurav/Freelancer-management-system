@@ -1,55 +1,70 @@
 import { apiUpload, apiFetch, GATEWAY_URL, getAccessToken } from "./config";
 
-// POST /api/files/upload/message  — attach a file to a message (multipart)
-export async function uploadMessageFile(file) {
+// POST /api/files/resume  — freelancer resume upload (correct backend path)
+export async function uploadResume(file) {
   const form = new FormData();
   form.append("file", file);
-  return apiUpload("/files/upload/message", form);
+  return apiUpload("/files/resume", form);
 }
 
-// POST /api/files/upload/report  — attach a file to a progress report
+// POST /api/files/progress/{contractId}/{milestoneId}  — progress report attachment
 export async function uploadReportFile(file, contractId, milestoneId) {
   const form = new FormData();
   form.append("file", file);
   return apiUpload(`/files/progress/${contractId}/${milestoneId}`, form);
 }
 
-// POST /api/files/upload/resume  — freelancer resume upload
-export async function uploadResume(file) {
+// POST /api/files/project-doc/{contractId}  — client project document
+export async function uploadProjectDoc(file, contractId) {
   const form = new FormData();
   form.append("file", file);
-  return apiUpload("/files/upload/resume", form);
+  return apiUpload(`/files/project-doc/${contractId}`, form);
 }
 
-// POST /api/files/upload/project  — project document upload
-export async function uploadProjectDoc(file, projectId) {
+// POST /api/files/portfolio  — freelancer portfolio item
+export async function uploadPortfolio(file) {
   const form = new FormData();
   form.append("file", file);
-  if (projectId) form.append("projectId", projectId);
-  return apiUpload("/files/upload/project", form);
+  return apiUpload("/files/portfolio", form);
 }
 
-// GET /api/files/{fileId}/download  — direct download URL
-export function getFileDownloadUrl(fileId) {
-  const token = getAccessToken();
-  return `${GATEWAY_URL}/files/${fileId}/download?token=${token}`;
+// GET /api/files/{fileId}/download  — returns { url } presigned URL
+export async function getFileDownloadUrl(fileId) {
+  return apiFetch(`/files/${fileId}/download`);
 }
 
-// GET /api/files/{fileId}  — file metadata
-export function getFileMetadata(fileId) {
-  return apiFetch(`/files/${fileId}`);
+// GET /api/files/portfolio/{userId}  — public portfolio listing
+export function getPortfolioFiles(userId) {
+  return apiFetch(`/files/portfolio/${userId}`);
 }
 
-// Trigger browser download for a file
-export function downloadFile(fileId, fileName) {
-  const url = getFileDownloadUrl(fileId);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = fileName || "download";
-  a.target = "_blank";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+// GET /api/files/contract/{contractId}  — files for a contract
+export function getContractFiles(contractId) {
+  return apiFetch(`/files/contract/${contractId}`);
+}
+
+// DELETE /api/files/{fileId}
+export function deleteFile(fileId) {
+  return apiFetch(`/files/${fileId}`, { method: "DELETE" });
+}
+
+// Trigger browser download using a presigned URL from backend
+export async function downloadFile(fileId, fileName) {
+  try {
+    const data = await getFileDownloadUrl(fileId);
+    const url = data?.url || data?.downloadUrl;
+    if (!url) throw new Error("No download URL returned");
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName || "download";
+    a.target = "_blank";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch (err) {
+    console.error("Download failed:", err);
+    throw err;
+  }
 }
 
 export function formatFileSize(bytes) {
