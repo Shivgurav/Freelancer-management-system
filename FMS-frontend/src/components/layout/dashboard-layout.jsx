@@ -98,28 +98,6 @@ export function DashboardLayout({ children, title }) {
           <span className="font-display font-bold text-base tracking-tight">TalentFlow</span>
         </div>
 
-        {/* Role switcher */}
-        <div className="flex gap-1.5 p-3 border-b border-border">
-          <button
-            onClick={() => { setRole("client"); navigate("/dashboard/client"); }}
-            className={cn(
-              "flex-1 py-1.5 px-2 rounded-lg text-xs transition-all border-[1.5px]",
-              isClient ? "border-primary bg-primary-bg font-semibold text-primary-dark" : "border-transparent hover:border-border bg-surface text-ink-4"
-            )}
-          >
-            ◧ Client
-          </button>
-          <button
-            onClick={() => { setRole("freelancer"); navigate("/dashboard/freelancer"); }}
-            className={cn(
-              "flex-1 py-1.5 px-2 rounded-lg text-xs transition-all border-[1.5px]",
-              !isClient ? "border-primary bg-primary-bg font-semibold text-primary-dark" : "border-transparent hover:border-border bg-surface text-ink-4"
-            )}
-          >
-            ◉ Freelancer
-          </button>
-        </div>
-
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 flex flex-col gap-1">
           {navGroups.map((group) => (

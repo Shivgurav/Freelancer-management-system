@@ -5,13 +5,15 @@ import { useAppStore } from "@/store/use-app-store";
 import {
   addMilestone, startMilestone, approveMilestone,
   requestMilestoneRevision, submitProgressReport,
-  getProgressReports, approveReport,
+  getProgressReports, approveReport, requestReportRevision,
 } from "@/api/contracts";
+import { uploadReportFile, getFileDownloadUrl, formatFileSize, getFileIcon } from "@/api/files";
 import {
   ChevronDown, ChevronUp, Plus, PlayCircle,
   CheckCircle, RotateCcw, FileText, AlertCircle,
+  Paperclip, X, Download, XCircle,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -23,6 +25,21 @@ function MilestoneBadge({ status }) {
     IN_PROGRESS:        "bg-primary-bg text-primary-dark",
     REVISION_REQUESTED: "bg-warning-bg text-warning-text",
     PENDING:            "bg-background text-ink-3 border border-border",
+  };
+  return (
+    <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${map[s] || map.PENDING}`}>
+      {s.replace("_", " ")}
+    </span>
+  );
+}
+
+function ReportStatusBadge({ status }) {
+  const s = (status || "PENDING").toUpperCase();
+  const map = {
+    APPROVED: "bg-success-bg text-success-text",
+    REJECTED: "bg-danger-bg text-danger-text",
+    REVISION_REQUESTED: "bg-warning-bg text-warning-text",
+    PENDING:  "bg-background text-ink-3 border border-border",
   };
   return (
     <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${map[s] || map.PENDING}`}>
@@ -43,40 +60,161 @@ function ProgressBar({ pct }) {
   );
 }
 
-// ── Progress Reports panel ────────────────────────────────────────────────────
-function ReportsPanel({ milestoneId, isFreelancer, onRefresh }) {
-  const [reports, setReports]     = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [showForm, setShowForm]   = useState(false);
-  const [title, setTitle]         = useState("");
-  const [desc, setDesc]           = useState("");
-  const [pct, setPct]             = useState(50);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError]         = useState("");
+// ── File attachment chip ───────────────────────────────────────────────────────
+function FileChip({ file, onRemove }) {
+  return (
+    <div className="inline-flex items-center gap-1.5 bg-primary-bg border border-primary-light rounded-lg px-2.5 py-1 text-[11px]">
+      <span>{getFileIcon(file.name)}</span>
+      <span className="text-ink font-medium truncate max-w-[120px]">{file.name}</span>
+      <span className="text-ink-3">{formatFileSize(file.size)}</span>
+      {onRemove && (
+        <button onClick={onRemove} className="text-ink-3 hover:text-danger transition-colors">
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+}
 
-  useEffect(() => {
+// ── Reject Report Modal (client) ──────────────────────────────────────────────
+function RejectReportModal({ report, onClose, onRejected }) {
+  const [feedback, setFeedback] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleReject() {
+    if (!feedback.trim()) { setError("Please provide feedback for the freelancer."); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      await requestReportRevision(report.id, feedback.trim());
+      onRejected(report.id, feedback.trim());
+      onClose();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+      <div className="bg-background border border-border rounded-2xl w-full max-w-md p-6 shadow-xl">
+        <h3 className="text-[15px] font-semibold text-ink mb-1">Reject Report</h3>
+        <p className="text-[12px] text-ink-3 mb-4">
+          Provide feedback so the freelancer can revise and re-submit.
+        </p>
+        {error && (
+          <p className="text-[12px] text-danger mb-3 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5" /> {error}
+          </p>
+        )}
+        <textarea
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+          placeholder="What needs to be changed or improved?"
+          rows={4}
+          className="w-full border border-border rounded-xl px-3 py-2 text-[13px] bg-surface focus:outline-none focus:border-primary transition-all resize-none mb-4"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-border rounded-xl py-2.5 text-[13px] font-medium text-ink-2 hover:bg-surface transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleReject}
+            disabled={submitting}
+            className="flex-1 bg-danger hover:bg-danger/90 text-white rounded-xl py-2.5 text-[13px] font-semibold transition-all disabled:opacity-50"
+          >
+            {submitting ? "Rejecting…" : "Reject & Send Feedback"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Progress Reports panel ────────────────────────────────────────────────────
+function ReportsPanel({ milestoneId, isFreelancer, contractId, onRefresh }) {
+  const [reports, setReports]       = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [showForm, setShowForm]     = useState(false);
+  const [title, setTitle]           = useState("");
+  const [desc, setDesc]             = useState("");
+  const [pct, setPct]               = useState(50);
+  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [uploading, setUploading]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState("");
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const fileInputRef = useRef(null);
+
+  function loadReports() {
     setLoading(true);
     getProgressReports(milestoneId)
       .then((r) => setReports(Array.isArray(r) ? r : []))
       .catch(() => setReports([]))
       .finally(() => setLoading(false));
-  }, [milestoneId]);
+  }
+
+  useEffect(() => { loadReports(); }, [milestoneId]);
+
+  // Show the submit form automatically if the freelancer has a rejected/revision report
+  useEffect(() => {
+    if (isFreelancer && reports.length > 0) {
+      const latestStatus = (reports[0]?.status || "").toUpperCase();
+      if (latestStatus === "REJECTED" || latestStatus === "REVISION_REQUESTED") {
+        setShowForm(true);
+      }
+    }
+  }, [reports, isFreelancer]);
+
+  function handleFileSelect(e) {
+    const files = Array.from(e.target.files || []);
+    const valid = files.filter((f) => f.size <= 20 * 1024 * 1024);
+    if (valid.length < files.length) {
+      setError("Some files were skipped (max 20 MB each).");
+    }
+    setAttachedFiles((prev) => [...prev, ...valid].slice(0, 5)); // max 5 files
+    e.target.value = "";
+  }
 
   async function submitReport() {
     if (!title.trim()) { setError("Title is required."); return; }
     setSubmitting(true);
     setError("");
     try {
+      // Upload files first
+      const attachmentUrls = [];
+      if (attachedFiles.length > 0) {
+        setUploading(true);
+        for (const file of attachedFiles) {
+          try {
+            const result = await uploadReportFile(file, contractId, milestoneId);
+            if (result?.fileId || result?.id || result?.url) {
+              attachmentUrls.push(result.url || result.fileId || result.id);
+            }
+          } catch (uploadErr) {
+            console.warn("File upload failed:", uploadErr);
+          }
+        }
+        setUploading(false);
+      }
+
       const report = await submitProgressReport(milestoneId, {
         title: title.trim(),
         description: desc.trim(),
         percentageComplete: pct,
+        attachmentUrls,
       });
       setReports((prev) => [report, ...prev]);
-      setTitle(""); setDesc(""); setPct(50); setShowForm(false);
+      setTitle(""); setDesc(""); setPct(50); setAttachedFiles([]); setShowForm(false);
       onRefresh();
     } catch (e) {
       setError(e.message);
+      setUploading(false);
     } finally {
       setSubmitting(false);
     }
@@ -85,29 +223,69 @@ function ReportsPanel({ milestoneId, isFreelancer, onRefresh }) {
   async function handleApproveReport(reportId) {
     try {
       await approveReport(reportId);
-      setReports((prev) => prev.map((r) => r.id === reportId ? { ...r, status: "APPROVED" } : r));
+      setReports((prev) =>
+        prev.map((r) => r.id === reportId ? { ...r, status: "APPROVED" } : r)
+      );
       onRefresh();
     } catch (e) { alert(e.message); }
   }
 
+  function handleRejected(reportId, feedback) {
+    setReports((prev) =>
+      prev.map((r) =>
+        r.id === reportId ? { ...r, status: "REJECTED", clientFeedback: feedback } : r
+      )
+    );
+    onRefresh();
+  }
+
+  const latestStatus = (reports[0]?.status || "").toUpperCase();
+  const canSubmitNew = isFreelancer && (
+    reports.length === 0 ||
+    latestStatus === "REJECTED" ||
+    latestStatus === "REVISION_REQUESTED"
+  );
+
   return (
     <div className="mt-3 border-t border-border/50 pt-3">
+      {rejectTarget && (
+        <RejectReportModal
+          report={rejectTarget}
+          onClose={() => setRejectTarget(null)}
+          onRejected={handleRejected}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-2">
         <span className="text-[12px] font-semibold text-ink-2 flex items-center gap-1">
           <FileText className="w-3.5 h-3.5" /> Progress Reports ({reports.length})
         </span>
-        {isFreelancer && (
+        {canSubmitNew && (
           <button
             onClick={() => setShowForm(!showForm)}
             className="text-[12px] text-primary font-semibold hover:underline"
           >
-            {showForm ? "Cancel" : "+ Submit Report"}
+            {showForm ? "Cancel" : latestStatus === "REJECTED" || latestStatus === "REVISION_REQUESTED" ? "↩ Re-submit Report" : "+ Submit Report"}
           </button>
         )}
       </div>
 
+      {/* Rejection notice for freelancer */}
+      {isFreelancer && (latestStatus === "REJECTED" || latestStatus === "REVISION_REQUESTED") && (
+        <div className="bg-danger-bg border border-danger/30 rounded-xl p-3 mb-3">
+          <p className="text-[12px] font-semibold text-danger-text flex items-center gap-1.5 mb-1">
+            <XCircle className="w-3.5 h-3.5" />
+            {latestStatus === "REJECTED" ? "Report Rejected" : "Revision Requested"}
+          </p>
+          {reports[0]?.clientFeedback && (
+            <p className="text-[12px] text-ink-2 italic">"{reports[0].clientFeedback}"</p>
+          )}
+          <p className="text-[11px] text-ink-3 mt-1">Please address the feedback and submit a new report.</p>
+        </div>
+      )}
+
       {/* Submit form */}
-      {isFreelancer && showForm && (
+      {canSubmitNew && showForm && (
         <div className="bg-background border border-border rounded-xl p-4 mb-3 flex flex-col gap-3">
           {error && (
             <p className="text-[12px] text-danger flex items-center gap-1">
@@ -137,12 +315,46 @@ function ReportsPanel({ milestoneId, isFreelancer, onRefresh }) {
             <span className="text-[13px] font-bold text-ink min-w-[38px]">{pct}%</span>
           </div>
           <ProgressBar pct={pct} />
+
+          {/* File attachment */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileSelect}
+                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip,.txt"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 border border-border rounded-lg px-3 py-1.5 text-[12px] text-ink-2 hover:border-primary hover:text-primary hover:bg-primary-bg transition-all"
+              >
+                <Paperclip className="w-3.5 h-3.5" /> Attach Files
+              </button>
+              <span className="text-[11px] text-ink-3">Max 5 files · 20 MB each</span>
+            </div>
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachedFiles.map((f, i) => (
+                  <FileChip
+                    key={i}
+                    file={f}
+                    onRemove={() => setAttachedFiles((prev) => prev.filter((_, j) => j !== i))}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={submitReport}
-            disabled={submitting}
+            disabled={submitting || uploading}
             className="bg-primary hover:bg-primary-dark text-white rounded-lg px-4 py-2 text-[12px] font-semibold transition-all disabled:opacity-50 self-start"
           >
-            {submitting ? "Submitting…" : "Submit Report"}
+            {uploading ? "Uploading files…" : submitting ? "Submitting…" : "Submit Report"}
           </button>
         </div>
       )}
@@ -154,42 +366,83 @@ function ReportsPanel({ milestoneId, isFreelancer, onRefresh }) {
         <p className="text-[12px] text-ink-3">No reports yet.</p>
       ) : (
         <div className="flex flex-col gap-2">
-          {reports.map((r) => (
-            <div key={r.id} className="bg-background border border-border/50 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-[13px] font-semibold text-ink">{r.title}</span>
-                <div className="flex items-center gap-2">
-                  {r.percentageComplete != null && (
-                    <span className="text-[11px] font-bold text-primary">{r.percentageComplete}%</span>
-                  )}
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold ${
-                    (r.status || "").toUpperCase() === "APPROVED"
-                      ? "bg-success-bg text-success-text"
-                      : "bg-background text-ink-3 border border-border"
-                  }`}>
-                    {r.status || "PENDING"}
-                  </span>
+          {reports.map((r) => {
+            const rStatus = (r.status || "PENDING").toUpperCase();
+            const isApproved = rStatus === "APPROVED";
+            const isRejected = rStatus === "REJECTED" || rStatus === "REVISION_REQUESTED";
+
+            return (
+              <div
+                key={r.id}
+                className={`bg-background border rounded-lg p-3 ${
+                  isRejected ? "border-danger/40" : "border-border/50"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[13px] font-semibold text-ink">{r.title}</span>
+                  <div className="flex items-center gap-2">
+                    {r.percentageComplete != null && (
+                      <span className="text-[11px] font-bold text-primary">{r.percentageComplete}%</span>
+                    )}
+                    <ReportStatusBadge status={r.status} />
+                  </div>
                 </div>
+
+                {r.description && (
+                  <p className="text-[12px] text-ink-3 leading-relaxed">{r.description}</p>
+                )}
+                {r.percentageComplete != null && (
+                  <div className="mt-2"><ProgressBar pct={r.percentageComplete} /></div>
+                )}
+
+                {/* Attachments */}
+                {r.attachmentUrls?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {r.attachmentUrls.map((url, i) => (
+                      <a
+                        key={i}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 bg-surface border border-border rounded px-2 py-0.5 text-[11px] text-ink-2 hover:text-primary hover:border-primary transition-colors"
+                      >
+                        <Download className="w-3 h-3" /> Attachment {i + 1}
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {r.clientFeedback && (
+                  <div className={`mt-2 p-2 rounded-lg text-[12px] italic ${
+                    isRejected ? "bg-danger-bg text-danger-text" : "bg-warning-bg text-warning-text"
+                  }`}>
+                    <span className="font-semibold">Client feedback: </span>
+                    {r.clientFeedback}
+                  </div>
+                )}
+
+                {/* Client actions */}
+                {!isFreelancer && !isApproved && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => handleApproveReport(r.id)}
+                      className="flex items-center gap-1 bg-success hover:bg-success/90 text-white rounded-lg px-3 py-1 text-[12px] font-semibold transition-all"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> Approve
+                    </button>
+                    {!isRejected && (
+                      <button
+                        onClick={() => setRejectTarget(r)}
+                        className="flex items-center gap-1 bg-danger hover:bg-danger/90 text-white rounded-lg px-3 py-1 text-[12px] font-semibold transition-all"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              {r.description && (
-                <p className="text-[12px] text-ink-3 leading-relaxed">{r.description}</p>
-              )}
-              {r.percentageComplete != null && (
-                <div className="mt-2"><ProgressBar pct={r.percentageComplete} /></div>
-              )}
-              {r.clientFeedback && (
-                <p className="text-[12px] text-warning-text mt-1 italic">Feedback: {r.clientFeedback}</p>
-              )}
-              {!isFreelancer && (r.status || "").toUpperCase() !== "APPROVED" && (
-                <button
-                  onClick={() => handleApproveReport(r.id)}
-                  className="mt-2 text-[12px] bg-success hover:bg-success/90 text-white rounded-lg px-3 py-1 font-semibold transition-all"
-                >
-                  Approve Report
-                </button>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -197,7 +450,7 @@ function ReportsPanel({ milestoneId, isFreelancer, onRefresh }) {
 }
 
 // ── Single milestone card ─────────────────────────────────────────────────────
-function MilestoneCard({ milestone, isFreelancer, onAction }) {
+function MilestoneCard({ milestone, isFreelancer, onAction, contractId }) {
   const [showReports, setShowReports] = useState(false);
   const [acting, setActing]           = useState(false);
 
@@ -284,6 +537,7 @@ function MilestoneCard({ milestone, isFreelancer, onAction }) {
           <ReportsPanel
             milestoneId={milestone.id}
             isFreelancer={isFreelancer}
+            contractId={contractId}
             onRefresh={onAction}
           />
         </div>
@@ -344,8 +598,7 @@ function AddMilestoneForm({ contractId, onAdded }) {
           className="border border-border rounded-lg px-3 py-2 text-[13px] bg-surface focus:outline-none focus:border-primary transition-all col-span-2" />
         <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Payment amount ($)"
           className="border border-border rounded-lg px-3 py-2 text-[13px] bg-surface focus:outline-none focus:border-primary transition-all" />
-        <input type="number" value={order} onChange={(e) => setOrder(+e.target.value)} placeholder="Sequence order"
-          min={1}
+        <input type="number" value={order} onChange={(e) => setOrder(+e.target.value)} placeholder="Sequence order" min={1}
           className="border border-border rounded-lg px-3 py-2 text-[13px] bg-surface focus:outline-none focus:border-primary transition-all" />
       </div>
       <div className="flex gap-2">
@@ -365,11 +618,10 @@ function AddMilestoneForm({ contractId, onAdded }) {
 // ── Contract card ─────────────────────────────────────────────────────────────
 function ContractCard({ contract, isFreelancer }) {
   const navigate = useNavigate();
-  const [expanded, setExpanded]   = useState(true); // open by default
+  const [expanded, setExpanded] = useState(true);
   const { data: milestones = [], isLoading: mlLoading, refetch } =
     useMilestones(contract.id);
 
-  // Derive overall progress from milestones
   const totalMilestones = milestones.length;
   const doneMilestones  = milestones.filter((m) =>
     ["APPROVED", "COMPLETED"].includes((m.status || "").toUpperCase())
@@ -385,7 +637,6 @@ function ContractCard({ contract, isFreelancer }) {
 
   return (
     <div className="bg-surface border border-border rounded-[14px] shadow-sm overflow-hidden">
-      {/* Header */}
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full px-5 py-4 flex items-start justify-between hover:bg-background/40 transition-colors text-left"
@@ -406,7 +657,6 @@ function ContractCard({ contract, isFreelancer }) {
             {contract.agreedAmount != null && ` · ${formatCurrency(contract.agreedAmount)}`}
           </div>
 
-          {/* Overall progress bar */}
           {totalMilestones > 0 && (
             <div className="max-w-xs">
               <div className="flex justify-between text-[11px] text-ink-3 mb-1">
@@ -424,7 +674,6 @@ function ContractCard({ contract, isFreelancer }) {
         </div>
       </button>
 
-      {/* Expanded body */}
       {expanded && (
         <div className="border-t border-border px-5 py-5">
           {contract.terms && (
@@ -433,7 +682,6 @@ function ContractCard({ contract, isFreelancer }) {
             </p>
           )}
 
-          {/* Milestones */}
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[13px] font-semibold text-ink">Milestones</h3>
             {!isFreelancer && milestones.length === 0 && (
@@ -460,19 +708,18 @@ function ContractCard({ contract, isFreelancer }) {
                       key={m.id}
                       milestone={m}
                       isFreelancer={isFreelancer}
+                      contractId={contract.id}
                       onAction={refetch}
                     />
                   ))
               )}
 
-              {/* Client can add milestones */}
               {!isFreelancer && (
                 <AddMilestoneForm contractId={contract.id} onAdded={refetch} />
               )}
             </div>
           )}
 
-          {/* Actions */}
           <div className="flex gap-2 pt-3 border-t border-border">
             <button
               onClick={() => navigate("/reviews")}

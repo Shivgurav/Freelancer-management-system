@@ -162,7 +162,18 @@ export default function FindFreelancers() {
         if (params.minRating)                        body.minRating    = Number(params.minRating);
         result = await searchFreelancers(body);
       } else {
-        result = await getTopRatedFreelancers(params.page, 12);
+        // No filters — show ALL freelancers using a large page size
+        // Try search API with empty body to get all, fallback to top-rated
+        try {
+          result = await searchFreelancers({ page: params.page, size: 50, sortBy: params.sortBy });
+          // If search returns empty, fall back to top-rated
+          const list = result?.results ?? (Array.isArray(result) ? result : []);
+          if (list.length === 0) {
+            result = await getTopRatedFreelancers(params.page, 50);
+          }
+        } catch {
+          result = await getTopRatedFreelancers(params.page, 50);
+        }
       }
       const list = result?.results ?? (Array.isArray(result) ? result : []);
       setFreelancers(list.map(normalizeFreelancer));

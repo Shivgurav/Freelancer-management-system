@@ -159,20 +159,6 @@ export const useAppStore = create((set, get) => ({
       const data = await apiRegister({ firstName, lastName, email, password, role });
       const authUser = data.user || { firstName, lastName, email, role, id: data.id };
 
-      // Auth service should auto-create the profile, but its inter-service
-      // call often fails locally. Create it here as a guaranteed fallback.
-      try {
-        if ((role || "").toUpperCase() === "FREELANCER") {
-          await initFreelancerProfile(firstName, lastName);
-        } else {
-          await initClientProfile(firstName, lastName);
-        }
-      } catch (initErr) {
-        // "already exists" error is fine — auth service beat us to it.
-        // Any other error is non-fatal; log and continue.
-        console.warn("Profile init:", initErr.message);
-      }
-
       // Now fetch the newly created profile
       const profile = await fetchProfile(role);
 
