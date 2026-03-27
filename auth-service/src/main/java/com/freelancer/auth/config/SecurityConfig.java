@@ -48,7 +48,8 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(
-           "*"
+           "http://192.168.1.91:5000",
+"https://freelancer-management-syste.vercel.app/"
         ));
         config.setAllowedMethods(List.of(
             "GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"

@@ -7,9 +7,9 @@ spring:
 
   datasource:
     # Replace with your own DB credentials or use env vars in production
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/freelancerdb}
-    username: ${SPRING_DATASOURCE_USERNAME:postgres}
-    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://ep-polished-fog-amshlcjk-pooler.c-5.us-east-1.aws.neon.tech:5432/neondb?sslmode=require}
+    username: ${SPRING_DATASOURCE_USERNAME:neondb_owner}
+    password: ${SPRING_DATASOURCE_PASSWORD:npg_3WGAnNgYMzw0}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10

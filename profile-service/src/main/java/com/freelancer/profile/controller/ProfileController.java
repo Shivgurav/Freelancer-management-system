@@ -182,4 +182,13 @@ public class ProfileController {
 
      return ResponseEntity.noContent().build();
  }
+ 
+ @PutMapping("/internal/client/{userId}/resume")
+ public ResponseEntity<Void> updateResume(
+         @PathVariable UUID userId,
+         @RequestBody Map<String, UUID> request) {
+
+     profileService.updateResume(userId, request.get("resumeFileId"));
+     return ResponseEntity.ok().build();
+ }
 }

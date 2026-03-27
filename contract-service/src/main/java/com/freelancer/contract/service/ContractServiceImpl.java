@@ -68,18 +68,7 @@ public class ContractServiceImpl implements ContractService {
         JobInfo  jobInfo        = jobClient.getJobInfo(request.getJobId());
         UserInfo freelancerInfo = authClient.getUserInfo(request.getFreelancerId());
 
-        // Send contract creation notifications
-        notificationClient.send(
-            "CONTRACT_CREATED",
-            clientInfo.getEmail(),
-            clientInfo.getFullName(),
-            Map.of(
-                "jobTitle",     jobInfo.getTitle(),
-                "agreedAmount", contract.getAgreedAmount().toString(),
-                "startDate",    contract.getStartDate() != null
-                                    ? contract.getStartDate().toString() : ""
-            )
-        );
+      
         notificationClient.send(
             "CONTRACT_CREATED",
             freelancerInfo.getEmail(),

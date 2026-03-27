@@ -38,10 +38,7 @@ public class AccessControlService {
             return;
         }
 
-        if (file.getContractId() == null) {
-            throw new FileException(
-                    "This file is not associated with any contract");
-        }
+        
 
         switch (file.getFileType()) {
 

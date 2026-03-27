@@ -52,6 +52,10 @@ public class SecurityConfig {
                     HttpMethod.PATCH,
                     "/api/profiles/freelancer/rating",
                     "/api/profiles/client/rating"
+                    
+                ).permitAll()
+                .requestMatchers(HttpMethod.PUT,
+                		"/api/profiles/internal/client/**"
                 ).permitAll()
                 .requestMatchers("/actuator/**").permitAll()
                 .anyRequest().authenticated()

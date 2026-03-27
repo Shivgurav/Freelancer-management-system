@@ -6,6 +6,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 public class ProfileRequest {
@@ -34,4 +35,6 @@ public class ProfileRequest {
 
     // List of skills to add to the profile
     private List<SkillRequest> skills;
+    
+    private UUID resumeFileId;
 }

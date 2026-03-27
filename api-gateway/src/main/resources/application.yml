@@ -91,11 +91,13 @@ spring:
             - Path=/api/search/**
           filters:
             - JwtAuthFilter                                                                                       
-
+       
         - id: file-service
           uri: lb://file-service
           predicates:
             - Path=/api/files/**
+          filters:
+            - JwtAuthFilter
 
         # ── Message Service WebSocket ─────────────────────────────
         - id: message-service-websocket

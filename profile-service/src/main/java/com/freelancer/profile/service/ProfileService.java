@@ -50,4 +50,6 @@ public interface ProfileService {
     void updateClientRating(UUID userId,
                              BigDecimal avgRating,
                              int totalReviews);
+
+	void updateResume(UUID userId, UUID uuid);
 }

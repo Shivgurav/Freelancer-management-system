@@ -31,4 +31,5 @@ public class ProfileResponse {
     private List<SkillResponse> skills;
     private LocalDateTime    createdAt;
     private LocalDateTime    updatedAt;
+    private UUID resumeFileId;
 }

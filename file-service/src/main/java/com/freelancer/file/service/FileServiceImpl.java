@@ -1,5 +1,6 @@
 package com.freelancer.file.service;
 
+import com.freelancer.file.config.client.ProfileClient;
 import com.freelancer.file.dto.response.DownloadUrlResponse;
 import com.freelancer.file.dto.response.FileUploadResponse;
 import com.freelancer.file.entity.FileMetadata;
@@ -29,6 +30,7 @@ public class FileServiceImpl implements FileService {
     private final FileMetadataRepository fileMetadataRepository;
     private final MinioService           minioService;
     private final AccessControlService   accessControlService;
+    private final ProfileClient profileClient;
 
     @Value("${buckets.resumes}")
     private String resumesBucket;
@@ -71,6 +73,7 @@ public class FileServiceImpl implements FileService {
                 .build();
 
         fileMetadataRepository.save(meta);
+        profileClient.updateProfile(userId, meta.getId());
         log.info("Resume uploaded — userId: {}", userId);
         return mapToResponse(meta, null);
     }

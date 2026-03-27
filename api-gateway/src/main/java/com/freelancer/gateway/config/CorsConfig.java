@@ -21,7 +21,9 @@ public class CorsConfig {
         config.setAllowedOrigins(List.of(
             "http://localhost:3000",
             "http://localhost:5173",
-            "http://localhost:5000"
+            "http://localhost:5000",
+            "http://192.168.1.91:5000",
+            "https://freelancer-management-syste.vercel.app/"
         ));
 
         config.setAllowedMethods(List.of(

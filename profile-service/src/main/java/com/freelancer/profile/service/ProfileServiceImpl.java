@@ -129,6 +129,9 @@ public class ProfileServiceImpl implements ProfileService {
             profile.setGithubUrl(request.getGithubUrl());
         if (request.getAvailability() != null)
             profile.setAvailability(request.getAvailability());
+        if(request.getResumeFileId() !=null) {
+        	profile.setResumeFileId(request.getResumeFileId());
+        }
 
         freelancerProfileRepository.save(profile);
         searchClient.syncFreelancerProfile(buildSyncData(profile));
@@ -374,6 +377,7 @@ public class ProfileServiceImpl implements ProfileService {
                         .collect(Collectors.toList()))
                 .createdAt(p.getCreatedAt())
                 .updatedAt(p.getUpdatedAt())
+                .resumeFileId(p.getResumeFileId())
                 .build();
     }
 
@@ -407,4 +411,17 @@ public class ProfileServiceImpl implements ProfileService {
                 .proficiencyLevel(fs.getProficiencyLevel())
                 .build();
     }
+
+	@Override
+	public void updateResume(UUID userId, UUID uuid) {
+		// TODO Auto-generated method stub
+		   FreelancerProfile profile = freelancerProfileRepository
+	                .findByUserId(userId)
+	                .orElseThrow(() -> new ResourceNotFoundException(
+	                        "Freelancer profile not found"));
+	        profile.setResumeFileId(uuid);
+	       
+	        freelancerProfileRepository.save(profile);
+		
+	}
 }

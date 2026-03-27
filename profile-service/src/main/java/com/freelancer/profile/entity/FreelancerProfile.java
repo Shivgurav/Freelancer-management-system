@@ -94,4 +94,6 @@ public class FreelancerProfile {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
+    private UUID resumeFileId;
 }
