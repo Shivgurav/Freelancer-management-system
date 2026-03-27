@@ -52,6 +52,7 @@ public class ProfileServiceImpl implements ProfileService {
             throw new ProfileException(
                     "Freelancer profile already exists for this user");
         }
+        String[] fullName=request.getTitle().split(" ");
 
         FreelancerProfile profile = FreelancerProfile.builder()
                 .userId(userId)
@@ -63,19 +64,22 @@ public class ProfileServiceImpl implements ProfileService {
                 .portfolioUrl(request.getPortfolioUrl())
                 .linkedinUrl(request.getLinkedinUrl())
                 .githubUrl(request.getGithubUrl())
+                .firstName(fullName[0])
+                .lastName(fullName[1])
                 .availability(request.getAvailability() != null
                         ? request.getAvailability()
                         : Availability.FULL_TIME)
                 .build();
 
         profile = freelancerProfileRepository.save(profile);
-        searchClient.syncFreelancerProfile(buildSyncData(profile));
+      
 
         if (request.getSkills() != null) {
             for (SkillRequest sr : request.getSkills()) {
                 addSkillToProfile(profile, sr);
             }
         }
+        searchClient.syncFreelancerProfile(buildSyncData(profile));  
 
         log.info("Freelancer profile created for userId: {}", userId);
         return mapFreelancerToResponse(
@@ -314,6 +318,8 @@ public class ProfileServiceImpl implements ProfileService {
         data.put("avgRating",        p.getAvgRating());
         data.put("totalReviews",     p.getTotalReviews());
         data.put("totalJobsCompleted", p.getTotalJobsCompleted());
+        data.put("firstName", p.getFirstName());
+        data.put("lastName", p.getLastName());
         List<String> skillNames = p.getFreelancerSkills().stream()
                 .map(fs -> fs.getSkill().getName())
                 .collect(Collectors.toList());

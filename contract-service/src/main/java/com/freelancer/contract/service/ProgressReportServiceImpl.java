@@ -14,14 +14,13 @@ import com.freelancer.contract.exception.ContractException;
 import com.freelancer.contract.exception.ResourceNotFoundException;
 import com.freelancer.contract.repository.MilestoneRepository;
 import com.freelancer.contract.repository.ProgressReportRepository;
-import com.freelancer.contract.service.MilestoneService;
-import com.freelancer.contract.service.ProgressReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -35,11 +34,10 @@ public class ProgressReportServiceImpl implements ProgressReportService {
     private final ProgressReportRepository reportRepository;
     private final MilestoneRepository      milestoneRepository;
     private final MilestoneService         milestoneService;
-    private final NotificationClient notificationClient;
-    private final AuthClient authClient;
+    private final NotificationClient       notificationClient;
+    private final AuthClient               authClient;
 
     // ── Submit progress report ────────────────────────────────────
-    // Freelancer submits this to show work done on a milestone
     @Override
     @Transactional
     public ProgressReportResponse submitReport(
@@ -49,15 +47,12 @@ public class ProgressReportServiceImpl implements ProgressReportService {
 
         Milestone milestone = findMilestone(milestoneId);
 
-        // Verify this freelancer belongs to the contract
         if (!milestone.getContract()
                 .getFreelancerId().equals(freelancerId)) {
             throw new ContractException(
                     "You are not the freelancer on this contract");
         }
 
-        // Milestone must be IN_PROGRESS or REVISION
-        // Cannot submit report on PENDING or APPROVED milestone
         if (milestone.getStatus() != MilestoneStatus.IN_PROGRESS
                 && milestone.getStatus() != MilestoneStatus.REVISION) {
             throw new ContractException(
@@ -65,39 +60,54 @@ public class ProgressReportServiceImpl implements ProgressReportService {
                     "to submit a report");
         }
 
+        // FIX: convert List<String> → comma-separated String for DB storage
+        // e.g. ["url1","url2"] → "url1,url2"
+        String urlsAsString = convertUrlsToString(
+                request.getAttachmentUrls());
+
         ProgressReport report = ProgressReport.builder()
                 .milestone(milestone)
                 .submittedBy(freelancerId)
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .percentageComplete(request.getPercentageComplete())
-                .attachmentUrls(request.getAttachmentUrls())
+                .attachmentUrls(urlsAsString)
                 .status(ReportStatus.SUBMITTED)
                 .build();
-        Contract contract=milestone.getContract();
-        UserInfo clientInfo=authClient.getUserInfo(contract.getClientId());
-        reportRepository.save(report);
-        notificationClient.send(
-        	    "PROGRESS_REPORT_SUBMITTED",
-        	    clientInfo.getEmail(),
-        	    clientInfo.getFullName()
-        	    ,
-        	    Map.of(
-        	        "milestoneTitle", milestone.getTitle(),
-        	        "reportTitle",    report.getTitle(),
-        	        "percentage",     report.getPercentageComplete().toString(),
-        	        "contractId",     milestone.getContract().getId().toString()
-        	    )
-        	);
 
-        // Move milestone to SUBMITTED status
-        // So client knows to review it
+        reportRepository.save(report);
+
+        // Notify client — wrapped in try-catch so report save
+        // is never rolled back if notification fails
+        try {
+            Contract contract  = milestone.getContract();
+            UserInfo clientInfo = authClient.getUserInfo(
+                    contract.getClientId());
+
+            notificationClient.send(
+                "PROGRESS_REPORT_SUBMITTED",
+                clientInfo.getEmail(),
+                clientInfo.getFullName(),
+                Map.of(
+                    "milestoneTitle", milestone.getTitle(),
+                    "reportTitle",    report.getTitle(),
+                    "percentage",     report.getPercentageComplete()
+                                           .toString(),
+                    "contractId",     milestone.getContract()
+                                               .getId().toString()
+                )
+            );
+        } catch (Exception e) {
+            log.warn("Notification failed (non-critical): {}",
+                    e.getMessage());
+        }
+
+        // Move milestone to SUBMITTED
         milestone.setStatus(MilestoneStatus.SUBMITTED);
         milestoneRepository.save(milestone);
 
-        log.info("Progress report submitted — milestoneId: {} " +
-                 "by freelancerId: {}", milestoneId, freelancerId);
-
+        log.info("Progress report submitted — milestoneId: {}",
+                milestoneId);
         return mapToResponse(report);
     }
 
@@ -113,8 +123,6 @@ public class ProgressReportServiceImpl implements ProgressReportService {
     }
 
     // ── Client approves report ────────────────────────────────────
-    // Approving a report = approving the milestone
-    // Which may trigger contract completion
     @Override
     @Transactional
     public ProgressReportResponse approveReport(UUID reportId,
@@ -122,7 +130,6 @@ public class ProgressReportServiceImpl implements ProgressReportService {
         ProgressReport report = findReport(reportId);
         Milestone milestone   = report.getMilestone();
 
-        // Only client can approve
         if (!milestone.getContract().getClientId().equals(clientId)) {
             throw new ContractException(
                     "Only the client can approve reports");
@@ -133,26 +140,33 @@ public class ProgressReportServiceImpl implements ProgressReportService {
             throw new ContractException(
                     "Can only approve SUBMITTED or REVIEWED reports");
         }
-         Contract contract=milestone.getContract();
-         UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
+
         report.setStatus(ReportStatus.APPROVED);
         reportRepository.save(report);
-        notificationClient.send(
-        	    "REPORT_APPROVED",
-        	    freelancerInfo.getEmail(),
-        	    freelancerInfo.getFullName(),
-        	    Map.of(
-        	        "milestoneTitle", milestone.getTitle(),
-        	        "reportTitle",    report.getTitle()
-        	    )
-        	);
 
-        // This triggers milestone approval
-        // Which may trigger contract completion
-        milestoneService.approveMilestone(
-                milestone.getId(), clientId);
+        try {
+            Contract contract       = milestone.getContract();
+            UserInfo freelancerInfo = authClient.getUserInfo(
+                    contract.getFreelancerId());
 
-        log.info("Progress report APPROVED — reportId: {}", reportId);
+            notificationClient.send(
+                "REPORT_APPROVED",
+                freelancerInfo.getEmail(),
+                freelancerInfo.getFullName(),
+                Map.of(
+                    "milestoneTitle", milestone.getTitle(),
+                    "reportTitle",    report.getTitle()
+                )
+            );
+        } catch (Exception e) {
+            log.warn("Notification failed (non-critical): {}",
+                    e.getMessage());
+        }
+
+        // Triggers milestone approval → may complete contract
+        milestoneService.approveMilestone(milestone.getId(), clientId);
+
+        log.info("Report APPROVED — reportId: {}", reportId);
         return mapToResponse(report);
     }
 
@@ -178,31 +192,51 @@ public class ProgressReportServiceImpl implements ProgressReportService {
         }
 
         report.setStatus(ReportStatus.NEEDS_REVISION);
-        Contract contract=milestone.getContract();
-        UserInfo freelancerInfo=authClient.getUserInfo(contract.getFreelancerId());
-        notificationClient.send(
-        	    "REVISION_REQUESTED",
-        	    freelancerInfo.getEmail(),
-        	    freelancerInfo.getFullName(),
-        	    Map.of(
-        	        "milestoneTitle", milestone.getTitle(),
-        	        "feedback",       feedback,
-        	        "contractId",     milestone.getContract().getId().toString()
-        	    )
-        	);
         report.setClientFeedback(feedback);
         reportRepository.save(report);
-        
 
-        // Move milestone back so freelancer can resubmit
-        milestoneService.requestRevision(
-                milestone.getId(), clientId);
+        try {
+            Contract contract       = milestone.getContract();
+            UserInfo freelancerInfo = authClient.getUserInfo(
+                    contract.getFreelancerId());
 
-        log.info("Revision requested on reportId: {}", reportId);
+            notificationClient.send(
+                "REVISION_REQUESTED",
+                freelancerInfo.getEmail(),
+                freelancerInfo.getFullName(),
+                Map.of(
+                    "milestoneTitle", milestone.getTitle(),
+                    "feedback",       feedback != null ? feedback : "",
+                    "contractId",     milestone.getContract()
+                                               .getId().toString()
+                )
+            );
+        } catch (Exception e) {
+            log.warn("Notification failed (non-critical): {}",
+                    e.getMessage());
+        }
+
+        milestoneService.requestRevision(milestone.getId(), clientId);
+
+        log.info("Revision requested — reportId: {}", reportId);
         return mapToResponse(report);
     }
 
-    // ── Private helpers ───────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Private helpers
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * Converts List<String> of URLs to comma-separated String for DB.
+     * ["url1","url2"] → "url1,url2"
+     * null or empty list → ""
+     */
+    private String convertUrlsToString(List<String> urls) {
+        if (urls == null || urls.isEmpty()) {
+            return "";
+        }
+        return String.join(",", urls);
+    }
 
     private Milestone findMilestone(UUID milestoneId) {
         return milestoneRepository.findById(milestoneId)
@@ -217,11 +251,13 @@ public class ProgressReportServiceImpl implements ProgressReportService {
     }
 
     private ProgressReportResponse mapToResponse(ProgressReport r) {
-        // Convert comma separated URLs back to list
-        List<String> urls = (r.getAttachmentUrls() != null
-                && !r.getAttachmentUrls().isEmpty())
+        // Convert comma-separated DB string back to List for response
+        // "url1,url2" → ["url1","url2"]
+        List<String> urls =
+                (r.getAttachmentUrls() != null
+                 && !r.getAttachmentUrls().isBlank())
                 ? Arrays.asList(r.getAttachmentUrls().split(","))
-                : List.of();
+                : Collections.emptyList();
 
         return ProgressReportResponse.builder()
                 .id(r.getId())

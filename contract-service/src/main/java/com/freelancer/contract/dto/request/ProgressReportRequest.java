@@ -3,6 +3,8 @@ package com.freelancer.contract.dto.request;
 import jakarta.validation.constraints.*;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class ProgressReportRequest {
 
@@ -17,6 +19,9 @@ public class ProgressReportRequest {
     @Max(value = 100, message = "Percentage cannot exceed 100")
     private Integer percentageComplete;
 
-    // Comma separated file URLs from File Service
-    private String attachmentUrls;
+    // FIX: was String (comma-separated) but React sends a JSON array.
+    // Jackson cannot deserialize ["url1","url2"] into a String.
+    // Changed to List<String> — Jackson handles it automatically.
+    // The service layer joins them with "," before saving to DB.
+    private List<String> attachmentUrls;
 }

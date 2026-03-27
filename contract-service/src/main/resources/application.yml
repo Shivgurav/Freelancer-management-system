@@ -36,7 +36,7 @@ eureka:
 
 
 services:
-  job: ${JOB_SERIVE_URL:http://job-service} 				
+  job: ${JOB_SERVICE_URL:http://job-service} 				
   auth: ${AUTH_SERVICE_URL:http://auth-service}
   notification: ${NOTIFICATION_SERVICE_URL:http://notification-service}
   message: ${MESSAGE_SERVICE_URL:http://message-service}

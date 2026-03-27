@@ -90,7 +90,12 @@ spring:
           predicates:
             - Path=/api/search/**
           filters:
-            - JwtAuthFilter
+            - JwtAuthFilter                                                                                       
+
+        - id: file-service
+          uri: lb://file-service
+          predicates:
+            - Path=/api/files/**
 
         # ── Message Service WebSocket ─────────────────────────────
         - id: message-service-websocket
@@ -107,6 +112,7 @@ spring:
             - Path=/api/messages/**
           filters:
             - JwtAuthFilter
+
 
 # ── Eureka ─────────────────────────────────────────────────────────
 eureka:

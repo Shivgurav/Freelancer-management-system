@@ -30,6 +30,13 @@ public class FreelancerProfile {
     // Each freelancer has exactly one profile
     @Column(name = "user_id", nullable = false, unique = true)
     private UUID userId;
+    
+    @Column(name = "first_name", nullable = false, length = 100)
+    private String firstName;
+
+    @Column(name = "last_name", nullable = false, length = 100)
+    private String lastName;
+
 
     @Column(nullable = false, length = 100)
     private String title;            // e.g. "Full Stack Java Developer"
