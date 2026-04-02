@@ -7,7 +7,7 @@ import {
 import { formatCurrency, cn } from "@/lib/utils";
 import { useAppStore } from "@/store/use-app-store";
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { getFreelancerProfileById } from "@/api/profile";
 import { getChatRooms, connectWS, sendWSMessage, isWSConnected } from "@/api/messages";
 import { getPortfolioFiles, downloadFile, formatFileSize, getFileIcon } from "@/api/files";
@@ -16,6 +16,8 @@ import { useContracts } from "@/hooks/use-contracts";
 export default function FreelancerProfile() {
   const { profileId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const {fullName, initials} = location.state;
   const { user, currentRole } = useAppStore();
   const { data: contracts = [] } = useContracts();
 
@@ -135,7 +137,7 @@ export default function FreelancerProfile() {
     );
   }
 
-  const initials = ((profile.firstName?.[0] || "") + (profile.lastName?.[0] || "")).toUpperCase() || "F";
+  // const initials = ((profile.firstName?.[0] || "") + (profile.lastName?.[0] || "")).toUpperCase() || "F";
   const isClient = currentRole === "client";
   const hasContract = contracts.some(
     (c) => c.freelancerId === profile.userId || c.freelancerProfileId === profile.profileId
@@ -159,7 +161,7 @@ export default function FreelancerProfile() {
             <div className="flex-1 space-y-3">
               <div>
                 <h1 className="text-2xl font-bold text-ink">
-                  {profile.fullName || [profile.firstName, profile.lastName].filter(Boolean).join(" ")}
+                  {fullName || profile.fullName || [profile.firstName, profile.lastName].filter(Boolean).join(" ")}
                 </h1>
                 {profile.title && (
                   <p className="text-primary-dark font-medium mt-1">{profile.title}</p>
@@ -210,19 +212,6 @@ export default function FreelancerProfile() {
             {/* Client action buttons */}
             {isClient && (
               <div className="flex flex-col gap-2">
-                <button
-                  onClick={() => setShowMessageModal(true)}
-                  disabled={!hasContract}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl py-2.5 px-5 text-sm font-semibold transition-all",
-                    hasContract
-                      ? "bg-primary hover:bg-primary-dark text-white shadow-md"
-                      : "bg-border text-ink-3 cursor-not-allowed"
-                  )}
-                >
-                  <MessageSquare className="w-4 h-4" />
-                  {hasContract ? "Send Message" : "No Active Contract"}
-                </button>
 
                 {/* Resume download button */}
                 <button

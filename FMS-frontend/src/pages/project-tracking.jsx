@@ -138,7 +138,6 @@ function RejectReportModal({ report, onClose, onRejected }) {
 function SubmitReportForm({ milestoneId, contractId, onSubmitted, onCancel, isResubmit }) {
   const [title, setTitle]                 = useState("");
   const [desc, setDesc]                   = useState("");
-  const [pct, setPct]                     = useState(50);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [uploading, setUploading]         = useState(false);
   const [submitting, setSubmitting]       = useState(false);
@@ -177,7 +176,7 @@ function SubmitReportForm({ milestoneId, contractId, onSubmitted, onCancel, isRe
       const report = await submitProgressReport(milestoneId, {
         title: title.trim(),
         description: desc.trim(),
-        percentageComplete: pct,
+        percentageComplete: 100,
         attachmentUrls,
       });
       onSubmitted(report);
@@ -221,16 +220,7 @@ function SubmitReportForm({ milestoneId, contractId, onSubmitted, onCancel, isRe
         className="border border-border rounded-lg px-3 py-2 text-[13px] bg-surface focus:outline-none focus:border-primary transition-all resize-none w-full"
       />
 
-      <div className="flex items-center gap-2 sm:gap-3">
-        <span className="text-[12px] text-ink-2 font-medium whitespace-nowrap">Completion:</span>
-        <input
-          type="range" min={0} max={100} step={5} value={pct}
-          onChange={(e) => setPct(+e.target.value)}
-          className="flex-1 accent-primary h-2"
-        />
-        <span className="text-[13px] font-bold text-ink min-w-[38px] text-right">{pct}%</span>
-      </div>
-      <ProgressBar pct={pct} />
+      <ProgressBar pct={100} />
 
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-2">
