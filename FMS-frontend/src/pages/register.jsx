@@ -3,6 +3,7 @@ import { AuthLayout } from "@/components/layout/auth-layout";
 import { useAppStore } from "@/store/use-app-store";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -13,6 +14,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleRegister(e) {
     e.preventDefault();
@@ -41,7 +43,7 @@ export default function Register() {
         <div className="w-[38px] h-[38px] bg-primary rounded-xl flex items-center justify-center font-display font-extrabold text-[15px] text-white">
           TF
         </div>
-        <span className="font-display font-bold text-[22px] text-ink">TalentFlow</span>
+        <span className="font-display font-bold text-[22px] text-ink"><Link to={"/"}>TalentFlow</Link></span>
       </div>
 
       <div className="text-center mb-7">
@@ -112,7 +114,7 @@ export default function Register() {
         <div>
           <label className="block text-[12.5px] font-medium text-ink-2 mb-1.5">Password</label>
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="At least 6 characters"
@@ -120,6 +122,13 @@ export default function Register() {
             minLength={6}
             className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary focus:bg-surface focus:ring-4 focus:ring-primary/10 transition-all"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-[3rem] top-[29.6rem] -translate-y-1/2 text-ink-2 hover:text-primary"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
         </div>
 
         <button

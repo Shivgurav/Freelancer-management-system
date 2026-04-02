@@ -50,7 +50,7 @@ function FreelancerCard({ f }) {
   
   return (
     <div
-      onClick={() => navigate(`/freelancer/${f.profileId || f.userId}`)}
+      onClick={() => navigate(`/freelancer/${f.profileId || f.userId}`, {state: {fullName: f.fullName, initials}})}
       className="bg-surface border border-border rounded-2xl p-5 hover:border-primary hover:shadow-lg transition-all cursor-pointer group"
     >
       <div className="flex gap-4">

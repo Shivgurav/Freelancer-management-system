@@ -2,7 +2,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { AuthLayout } from "@/components/layout/auth-layout";
 import { useAppStore } from "@/store/use-app-store";
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function Login() {
@@ -12,6 +12,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(true);
   const [localError, setLocalError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleLogin(e) {
     e.preventDefault();
@@ -34,7 +35,7 @@ export default function Login() {
         <div className="w-[38px] h-[38px] bg-primary rounded-xl flex items-center justify-center font-display font-extrabold text-[15px] text-white">
           TF
         </div>
-        <span className="font-display font-bold text-[22px] text-ink">TalentFlow</span>
+        <span className="font-display font-bold text-[22px] text-ink"><Link to={"/"}>TalentFlow</Link></span>
       </div>
 
       <div className="text-center mb-7">
@@ -63,13 +64,20 @@ export default function Login() {
         <div>
           <label className="block text-[12.5px] font-medium text-ink-2 mb-1.5">Password</label>
           <input
-            type="password"
+            type={showPassword ? "text" : "password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Your password"
             required
             className="w-full border-[1.5px] border-border rounded-lg px-3.5 py-2.5 text-[13.5px] text-ink bg-background focus:outline-none focus:border-primary focus:bg-surface focus:ring-4 focus:ring-primary/10 transition-all"
           />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-[3rem] top-[20.3rem] -translate-y-1/2 text-ink-2 hover:text-primary"
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
         </div>
 
         <div className="flex items-center justify-between">

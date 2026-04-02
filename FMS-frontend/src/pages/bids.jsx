@@ -1,12 +1,12 @@
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { useBids, useBidsForJob, acceptBid, rejectBid, withdrawBid } from "@/hooks/use-bids";
 import { useMyJobs } from "@/hooks/use-projects";
-import { createContract } from "@/api/contracts";
 import { formatCurrency } from "@/lib/utils";
 import { useAppStore } from "@/store/use-app-store";
 import { CheckCircle, Clock, XCircle, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { getFreelancerProfileById } from "../api/profile";
 
 function StatusBadge({ status }) {
   const s = (status || "").toUpperCase();
@@ -62,39 +62,21 @@ function JobBidsCard({ job, isExpanded, onToggle }) {
   const [actionError, setActionError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
+  // useEffect(() => {
+  //   bids.map(async (bid) => {
+  //     try {
+  //       const freelancer = await getFreelancerProfileById(bid.freelancerId);
+  //       bid.freelancerName = freelancer.firstName;
+  //     } catch {}
+  //   })
+  // })
+
   async function handleAccept(bid) {
     setActionLoading(bid.id + "_accept");
     setActionError("");
     setSuccessMsg("");
     try {
-      // 1. Accept the bid in job-service
       await acceptBid(bid.id);
-
-      // 2. Create the contract directly from frontend — backend inter-service
-      //    call (job-service → contract-service) fails locally due to Eureka
-      //    hostname resolution. This guarantees the contract is always created.
-      try {
-        // startDate = today, endDate = today + estimatedDays from bid
-        const startDate = new Date();
-        const endDate = new Date();
-        endDate.setDate(endDate.getDate() + (bid.deliveryDays || 30));
-        const fmt = (d) => d.toISOString().split("T")[0]; // "YYYY-MM-DD"
-
-        await createContract({
-          jobId:        job.id,
-          bidId:        bid.id,
-          clientId:     user.id,
-          freelancerId: bid.freelancerId,
-          agreedAmount: bid.amount,
-          startDate:    fmt(startDate),
-          endDate:      fmt(endDate),
-          terms:        `Contract for: ${job.title}`,
-        });
-      } catch (contractErr) {
-        // Contract may already exist if backend succeeded — safe to ignore
-        console.warn("Contract creation (frontend fallback):", contractErr.message);
-      }
-
       setSuccessMsg(`Bid accepted! Contract created for ${bid.freelancerName || "freelancer"}.`);
       refetch();
     } catch (err) {
